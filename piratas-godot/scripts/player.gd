@@ -18,6 +18,11 @@ var helm_pitch := -0.05
 var zoom := 1.0
 var _shake := 0.0
 var _cam_pos := Vector3.ZERO
+var _cam_yaw := 0.0
+var _cam_y := 0.0
+var _cam_init := false
+var _look_idle := 10.0
+var _helm_pitch_s := 0.0
 var _rng := RandomNumberGenerator.new()
 
 var foot_pos := Vector3.ZERO
@@ -44,6 +49,7 @@ func shake(v: float) -> void:
 
 func look(d: Vector2) -> void:
 	var k := 0.0045 * (0.25 if spyglass else 1.0)
+	_look_idle = 0.0
 	match mode:
 		Mode.THIRD:
 			orbit_yaw -= d.x * k
@@ -72,6 +78,14 @@ func toggle_spyglass() -> void:
 	if spyglass:
 		helm_yaw = wrapf(orbit_yaw, -PI, PI) if mode == Mode.THIRD else helm_yaw
 		helm_pitch = 0.0
+
+
+func sail_step(dir: int) -> void:
+	var lvl := clampi(int(round(sail_target * 3.0)) + dir, 0, 3)
+	sail_target = lvl / 3.0
+	var names := ["Velas recolhidas", "1/3 de vela", "2/3 de vela", "Todas as velas!"]
+	Game.notify(names[lvl], Color(0.9, 0.95, 1.0))
+	Sfx.play("click", -8.0)
 
 
 func go_ashore(p: Vector2) -> void:
@@ -138,7 +152,7 @@ func _process(delta: float) -> void:
 		if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
 			kb += 1.0
 		if not steer_touch:
-			steer_input = move_toward(steer_input, kb, delta * (2.5 if kb != 0.0 else 1.6))
+			steer_input = move_toward(steer_input, kb, delta * 3.0)
 		if not ship.dead:
 			ship.rudder = steer_input
 			ship.sail_level = sail_target * 1.0
@@ -148,7 +162,7 @@ func _process(delta: float) -> void:
 			_helm(ship, delta)
 	if _shake > 0.0:
 		cam.global_position += Vector3(_rng.randf_range(-1, 1), _rng.randf_range(-1, 1), _rng.randf_range(-1, 1)) * _shake * 0.35
-	var target_fov := 62.0
+	var target_fov := 60.0
 	if spyglass:
 		target_fov = 13.0
 	elif mode == Mode.HELM:
@@ -158,33 +172,48 @@ func _process(delta: float) -> void:
 	cam.fov = lerpf(cam.fov, target_fov, 1.0 - exp(-delta * 8.0))
 
 
+## Câmera de perseguição: fica atrás do navio, segue o rumo com atraso suave
+## e ignora o balanço das ondas (sem sensação de estar girando).
 func _third(ship: Ship, delta: float) -> void:
-	var target := ship.global_position + Vector3(0, 3.0 + ship.length * 0.12, 0)
-	var dist := (ship.length * 1.25 + 16.0) * zoom
-	var yaw := ship.yaw + orbit_yaw
-	var dir := Vector3(sin(yaw) * cos(orbit_pitch), -sin(orbit_pitch), cos(yaw) * cos(orbit_pitch))
+	if not _cam_init:
+		_cam_init = true
+		_cam_yaw = ship.yaw + orbit_yaw
+		_cam_y = ship._y
+	# depois de um tempo sem mexer, a câmera volta para trás do navio
+	_look_idle += delta
+	if _look_idle > 2.5:
+		var k_back := 1.0 - exp(-delta * 0.9)
+		orbit_yaw = lerp_angle(orbit_yaw, 0.0, k_back)
+		orbit_pitch = lerpf(orbit_pitch, -0.2, k_back)
+	_cam_yaw = lerp_angle(_cam_yaw, ship.yaw + orbit_yaw, 1.0 - exp(-delta * 2.2))
+	_cam_y = lerpf(_cam_y, ship._y, 1.0 - exp(-delta * 0.8))
+	var f := ship.forward()
+	var base := Vector3(ship.global_position.x, _cam_y, ship.global_position.z)
+	var target := base + Vector3(f.x, 0.0, f.y) * ship.length * 0.2 + Vector3(0, 4.0 + ship.length * 0.16, 0)
+	var dist := (ship.length * 1.35 + 18.0) * zoom
+	var dir := Vector3(sin(_cam_yaw) * cos(orbit_pitch), -sin(orbit_pitch), cos(_cam_yaw) * cos(orbit_pitch))
 	var want := target + dir * dist
-	var wh := Ocean.height_at(want.x, want.z) + 1.8
-	var th := World.I.terrain_height(want.x, want.z) + 2.0
-	want.y = maxf(want.y, maxf(wh, th))
+	var floor_y := maxf(Ocean.height_at(want.x, want.z) + 2.5, World.I.terrain_height(want.x, want.z) + 3.0)
+	want.y = maxf(want.y, floor_y)
 	if _cam_pos == Vector3.ZERO or _cam_pos.distance_to(want) > 200.0:
 		_cam_pos = want
-	_cam_pos = _cam_pos.lerp(want, 1.0 - exp(-delta * 6.0))
+	# posição já vem suavizada pelo ângulo; só amortece a altura
+	_cam_pos = Vector3(want.x, lerpf(_cam_pos.y, want.y, 1.0 - exp(-delta * 4.0)), want.z)
 	cam.global_position = _cam_pos
 	cam.look_at(target, Vector3.UP)
 
 
 func _helm(ship: Ship, delta: float) -> void:
+	_cam_init = false
 	var helm: Vector3 = ship.model["helm"]
 	var p := ship.global_transform * helm
-	# reduzir o balanço para não enjoar
-	var b := Basis.from_euler(Vector3(ship._pitch * 0.45, ship.yaw, ship._roll * 0.45))
-	var yaw := helm_yaw
-	var pitch := helm_pitch
 	if spyglass and mode == Mode.THIRD:
 		p = ship.global_position + Vector3(0, ship.model["deck_mid"] + 3.0, 0)
+	# sem rolagem e com pouco arfagem: o horizonte fica firme
+	_helm_pitch_s = lerpf(_helm_pitch_s, ship._pitch * 0.25, 1.0 - exp(-delta * 2.0))
+	var b := Basis.from_euler(Vector3(_helm_pitch_s, ship.yaw, 0.0))
 	cam.global_position = p
-	cam.global_basis = b * Basis.from_euler(Vector3(pitch, yaw, 0.0))
+	cam.global_basis = b * Basis.from_euler(Vector3(helm_pitch, helm_yaw, 0.0))
 	_cam_pos = Vector3.ZERO
 
 

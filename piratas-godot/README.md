@@ -7,6 +7,8 @@ Tudo é gerado por código, sem nenhum arquivo de arte: ondas do oceano, céu, i
 
 ## Baixar o APK
 
+APK pronto: [`apk/MaresDeFortuna-v1.1.apk`](../apk/MaresDeFortuna-v1.1.apk) (Android 7 ou superior).
+
 Cada push na pasta `piratas-godot/` gera um APK pelo GitHub Actions (workflow *Mares de Fortuna (Godot) - APK*):
 
 1. Abra a aba **Releases** do repositório no celular.
@@ -47,8 +49,9 @@ Como pirata, sua infâmia cresce (Marujo Rebelde → Rei dos Piratas) e caçador
 ## Controles
 
 Celular (horizontal):
-- **Leme** (canto inferior esquerdo): arraste para os lados para virar.
-- **Velas** (barra à direita): recolhidas, 1/3, 2/3 ou todas.
+- **Joystick** (canto inferior esquerdo): esquerda/direita vira o navio (ele tem peso e vira aos poucos); empurre para cima para soltar mais vela e para baixo para recolher.
+- **Velas** (barra à direita): também dá para tocar direto em recolhidas, 1/3, 2/3 ou todas.
+- A câmera fica atrás do navio e volta sozinha para trás dele depois que você para de girá-la.
 - **BOMBORDO / ESTIBORDO**: dispara o costado da esquerda ou da direita. O anel mostra a recarga, e a mira ajuda a acertar o alvo mais próximo daquele lado.
 - Arraste em qualquer outro lugar da tela para girar a câmera.
 - **CÂMERA** alterna entre terceira pessoa e o timão em primeira pessoa. **LUNETA** dá zoom. **MUNIÇÃO** troca o tipo de bala. **BANDEIRA** iça uma bandeira falsa.

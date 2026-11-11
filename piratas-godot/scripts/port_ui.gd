@@ -191,7 +191,7 @@ func _shipyard() -> void:
 	var dmg := Game.max_hull() - Game.hull_hp
 	var hull_cost := int(dmg * (1.2 + d["guns"] * 0.06))
 	var sail_cost := int((100.0 - Game.sail_hp) * (4 + d["masts"] * 3))
-	content.add_child(UiStyle.label("Seu navio: %s — %d canhões por bordo, velocidade %.1f nós, porão %d." % [d["name"], d["guns"], d["speed"] * 1.94 / 3.0, d["cargo"]], 18, UiStyle.GOLD))
+	content.add_child(UiStyle.label("Seu navio: %s — %d canhões por bordo, velocidade %.1f nós, porão %d." % [d["name"], d["guns"], d["speed"] * 1.94 * 0.6, d["cargo"]], 18, UiStyle.GOLD))
 	_row([_lbl("Reparar o casco (%d/%d)" % [int(Game.hull_hp), int(Game.max_hull())]), _btn("%d moedas" % hull_cost, func(): _repair_hull(hull_cost), dmg > 1 and Game.gold >= hull_cost, 200)])
 	_row([_lbl("Remendar as velas (%d%%)" % int(Game.sail_hp)), _btn("%d moedas" % sail_cost, func(): _repair_sail(sail_cost), Game.sail_hp < 99.5 and Game.gold >= sail_cost, 200)])
 	content.add_child(UiStyle.label("Melhorias (máximo 3 níveis cada)", 20, UiStyle.GOLD))

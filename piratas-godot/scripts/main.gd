@@ -118,7 +118,7 @@ func _enter_game() -> void:
 	playing = true
 	var where := world.port_islands[world.nearest_port(Game.player_pos)].name
 	Game.notify("%s, %s. Você está perto de %s." % [Game.captain_name, Game.career_title(), where], Color(1, 0.9, 0.6))
-	Game.notify("Arraste o LEME para virar, suba as VELAS e dispare pelos bordos.", Color(0.85, 0.95, 1))
+	Game.notify("Joystick: esquerda/direita vira o navio, para cima solta mais vela, para baixo recolhe.", Color(0.85, 0.95, 1))
 
 
 # ================================================================ ações de contexto

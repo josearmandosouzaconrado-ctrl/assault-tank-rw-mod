@@ -49,6 +49,8 @@ var _pitch := 0.0
 var _roll := 0.0
 var _y := 0.0
 var _wheel_angle := 0.0
+var _rudder_s := 0.0
+var _yaw_rate := 0.0
 var _sail_update := 0.0
 var _last_fill := -9.0
 var _last_furl := -9.0
@@ -146,12 +148,12 @@ func display_name() -> String:
 
 static func sail_efficiency(angle_from_downwind: float) -> float:
 	var a := rad_to_deg(absf(angle_from_downwind))
-	var pts := [[0.0, 0.8], [45.0, 1.0], [90.0, 0.95], [120.0, 0.65], [145.0, 0.3], [180.0, 0.12]]
+	var pts := [[0.0, 0.85], [50.0, 1.0], [100.0, 0.95], [140.0, 0.75], [180.0, 0.55]]
 	for i in pts.size() - 1:
 		if a <= pts[i + 1][0]:
 			var k: float = (a - pts[i][0]) / (pts[i + 1][0] - pts[i][0])
 			return lerpf(pts[i][1], pts[i + 1][1], k)
-	return 0.12
+	return 0.55
 
 
 func wind_angle_from_downwind() -> float:
@@ -177,14 +179,21 @@ func _physics_process(delta: float) -> void:
 	var target := max_s * sail_actual * eff * (0.35 + 0.65 * sail_hp / 100.0) * World.I.wind_strength
 	if crew < max_crew * 0.25:
 		target *= 0.6
-	var accel := max_s * 0.09
+	# navio pesado: acelera e freia devagar
+	var accel := max_s * 0.07
 	if speed < target:
 		speed = minf(target, speed + accel * delta)
 	else:
-		speed = maxf(target, speed - (accel * 0.6 + speed * 0.06) * delta)
-	var steer := clampf(speed / (max_s * 0.35) + 0.2, 0.25, 1.0)
-	var yaw_rate := -rudder * float(def["turn"]) * steer
+		speed = maxf(target, speed - (accel * 0.7 + speed * 0.05) * delta)
+	# leme gira aos poucos e o casco tem inércia na curva
+	var weight := clampf(20.0 / length, 0.4, 1.0)
+	_rudder_s = move_toward(_rudder_s, rudder, delta * 1.8)
+	var steer := clampf(speed / (max_s * 0.4) + 0.3, 0.3, 1.0)
+	var target_rate := -_rudder_s * float(def["turn"]) * steer
+	_yaw_rate = lerpf(_yaw_rate, target_rate, 1.0 - exp(-delta * 1.5 * weight))
+	var yaw_rate := _yaw_rate
 	yaw = wrapf(yaw + yaw_rate * delta, -PI, PI)
+	speed = maxf(0.0, speed - absf(yaw_rate) * speed * 0.12 * delta)
 	var f := forward()
 	var np := pos2() + f * speed * delta
 	# encalhe em ilhas
@@ -219,22 +228,22 @@ func _float(np: Vector2, delta: float, yaw_rate: float, wind_a: float) -> void:
 	var hst := Ocean.height_at(np.x + r.x * hb, np.y + r.y * hb)
 	var avg := (hb_ + hs + hp_ + hst) * 0.25
 	var size_lag := clampf(20.0 / length, 0.35, 1.0)
-	var t_pitch := atan2(hb_ - hs, hl * 2.0) * 0.9
-	var t_roll := atan2(hst - hp_, hb * 2.0) * 0.7
+	var t_pitch := atan2(hb_ - hs, hl * 2.0) * 0.55
+	var t_roll := atan2(hst - hp_, hb * 2.0) * 0.4
 	# adernar com o vento lateral e nas curvas
 	var side_wind := sin(wind_a)
-	t_roll += side_wind * sail_actual * 0.07 * World.I.wind_strength
-	t_roll += yaw_rate * speed * 0.012
-	var k := 1.0 - exp(-delta * 3.0 * size_lag)
+	t_roll += side_wind * sail_actual * 0.05 * World.I.wind_strength
+	t_roll -= clampf(yaw_rate * speed * 0.02, -0.12, 0.12)
+	var k := 1.0 - exp(-delta * 2.2 * size_lag)
 	_pitch = lerpf(_pitch, t_pitch, k)
 	_roll = lerpf(_roll, t_roll, k)
-	_y = lerpf(_y, avg, 1.0 - exp(-delta * 4.0 * size_lag))
+	_y = lerpf(_y, avg, 1.0 - exp(-delta * 2.5 * size_lag))
 	global_position = Vector3(np.x, _y - sinking, np.y)
 	basis = Basis.from_euler(Vector3(_pitch, yaw, _roll))
 
 
 func _visuals(delta: float, eff: float, wind_a: float) -> void:
-	_wheel_angle = lerpf(_wheel_angle, -rudder * 2.4, delta * 4.0)
+	_wheel_angle = lerpf(_wheel_angle, -_rudder_s * 2.6, delta * 5.0)
 	var wheel: Node3D = model["wheel"]
 	wheel.rotation.z = _wheel_angle
 	_sail_update -= delta
@@ -256,7 +265,7 @@ func _visuals(delta: float, eff: float, wind_a: float) -> void:
 	for p in model["fore_aft"]:
 		p.rotation.y = lerp_angle(p.rotation.y, boom, 0.2)
 	var fill := clampf(eff * 1.05, 0.0, 1.0) * World.I.wind_strength
-	if eff < 0.2:
+	if absf(wind_a) > deg_to_rad(155.0):
 		fill = -0.15
 	var furl := sail_actual
 	var dmg := clampf(1.0 - sail_hp / 100.0, 0.0, 1.0)

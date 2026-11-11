@@ -57,47 +57,68 @@ class Widget extends Control:
 		queue_redraw()
 
 
+## Joystick de navegação: X = leme (volta ao centro ao soltar),
+## empurrar para cima/baixo sobe ou recolhe um nível de vela.
 class WheelCtl extends Widget:
-	var start_x := 0.0
-	var start_val := 0.0
+	var knob := Vector2.ZERO
+	var _sail_latch := 0
 
 	func t_down(p: Vector2) -> void:
 		super.t_down(p)
-		start_x = p.x
-		start_val = hud.ctl.steer_input
 		hud.ctl.steer_touch = true
+		t_drag(p, Vector2.ZERO)
 
 	func t_drag(p: Vector2, _rel: Vector2) -> void:
-		hud.ctl.steer_input = clampf(start_val + (p.x - start_x) / (size.x * 0.45), -1.0, 1.0)
+		var c := global_position + size * 0.5
+		var r := size.x * 0.38
+		knob = ((p - c) / r).limit_length(1.0)
+		# zona morta pequena e resposta suave
+		var x := knob.x
+		x = signf(x) * clampf((absf(x) - 0.08) / 0.92, 0.0, 1.0)
+		hud.ctl.steer_input = signf(x) * pow(absf(x), 1.3)
+		if knob.y < -0.7 and _sail_latch != -1:
+			_sail_latch = -1
+			hud.ctl.sail_step(1)
+		elif knob.y > 0.7 and _sail_latch != 1:
+			_sail_latch = 1
+			hud.ctl.sail_step(-1)
+		elif absf(knob.y) < 0.4:
+			_sail_latch = 0
 
 	func t_up() -> void:
 		super.t_up()
+		knob = Vector2.ZERO
+		_sail_latch = 0
 		hud.ctl.steer_touch = false
+		hud.ctl.steer_input = 0.0
 
 	func _process(_d: float) -> void:
 		queue_redraw()
 
 	func _draw() -> void:
 		var c := size * 0.5
-		var r := minf(size.x, size.y) * 0.42
-		var a := hud.ctl.steer_input * 2.4 if hud.ctl else 0.0
-		var wood := Color(0.42, 0.26, 0.14, 0.9)
-		var dark := Color(0.2, 0.12, 0.06, 0.9)
-		draw_circle(c, r + 6, Color(0, 0, 0, 0.25))
+		var r := size.x * 0.38
+		var f := ThemeDB.fallback_font
+		draw_circle(c, r + 10, Color(0, 0, 0, 0.28))
+		draw_arc(c, r + 10, 0, TAU, 48, Color(GOLD, 0.45), 2.5)
+		# setas
+		var col := Color(1, 1, 1, 0.55)
+		draw_string(f, c + Vector2(-r - 4, 7), "◄", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, col)
+		draw_string(f, c + Vector2(r - 14, 7), "►", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, col)
+		draw_string(f, c + Vector2(-40, -r + 14), "+ vela", HORIZONTAL_ALIGNMENT_CENTER, 80, 13, GOLD)
+		draw_string(f, c + Vector2(-40, r - 2), "- vela", HORIZONTAL_ALIGNMENT_CENTER, 80, 13, GOLD)
+		# manete com o timão desenhado
+		var kc := c + knob * r
+		var a := hud.ctl.steer_input * 1.6 if hud.ctl else 0.0
+		var kr := r * 0.42
+		var wood := Color(0.45, 0.28, 0.15, 0.95)
 		for k in 8:
 			var ang := a + k * PI / 4.0
 			var d := Vector2(cos(ang), sin(ang))
-			draw_line(c + d * r * 0.2, c + d * (r + 18), dark, 9.0)
-			draw_line(c + d * r * 0.2, c + d * (r + 18), wood, 6.0)
-			draw_circle(c + d * (r + 20), 8, wood)
-		draw_arc(c, r, 0, TAU, 48, dark, 12.0)
-		draw_arc(c, r, 0, TAU, 48, wood, 8.0)
-		draw_circle(c, r * 0.22, wood)
-		draw_circle(c, r * 0.1, GOLD)
-		var m := Vector2(cos(a - PI * 0.5), sin(a - PI * 0.5))
-		draw_circle(c + m * (r + 20), 9, GOLD)
-		var f := ThemeDB.fallback_font
-		draw_string(f, Vector2(0, size.y - 2), "LEME", HORIZONTAL_ALIGNMENT_CENTER, size.x, 16, Color(1, 1, 1, 0.7))
+			draw_line(kc, kc + d * (kr + 9), wood, 5.0)
+			draw_circle(kc + d * (kr + 10), 5, wood)
+		draw_arc(kc, kr, 0, TAU, 32, wood, 7.0)
+		draw_circle(kc, kr * 0.3, GOLD)
 
 
 class JoyCtl extends Widget:
@@ -229,7 +250,7 @@ class StatusPanel extends Control:
 		draw_string(f, Vector2(12, 46), "Ouro: %d   Tripulação: %d/%d" % [Game.gold, s.crew, s.max_crew], HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color.WHITE)
 		_bar(54, "Casco", s.hp / s.max_hp, Color(0.85, 0.25, 0.2).lerp(Color(0.3, 0.8, 0.3), s.hp / s.max_hp))
 		_bar(72, "Velas", s.sail_hp / 100.0, Color(0.9, 0.88, 0.75))
-		var spd := s.speed * 1.94 / 3.0
+		var spd := s.speed * 1.94 * 0.6
 		draw_string(f, Vector2(12, 106), "%s  •  %.1f nós  •  Carga %d/%d  •  %s" % [s.def["name"], spd, Game.cargo_used(), Game.cargo_capacity(), Game.AMMO[s.ammo]], HORIZONTAL_ALIGNMENT_LEFT, size.x - 16, 13, Color(1, 1, 1, 0.75))
 
 

@@ -13,6 +13,7 @@ uniform vec3 deep_color : source_color = vec3(0.008, 0.085, 0.15);
 uniform vec3 shallow_color : source_color = vec3(0.03, 0.52, 0.52);
 uniform vec3 scatter_color : source_color = vec3(0.0, 0.42, 0.38);
 uniform float light_level = 1.0;
+uniform vec2 cam_xz = vec2(0.0);
 
 varying vec3 wpos;
 varying float wave_h;
@@ -22,7 +23,7 @@ const float CHOP = 1.15;
 
 void wave(vec2 p, vec2 dir, float L, float A, inout vec3 disp, inout vec2 grad) {
 	float k = 6.28318 / L;
-	float w = sqrt(9.8 * k);
+	float w = sqrt(9.8 * k) * 0.8;
 	vec2 d = normalize(dir);
 	float f = k * dot(d, p) - w * wave_time;
 	float c = cos(f);
@@ -34,24 +35,26 @@ void wave(vec2 p, vec2 dir, float L, float A, inout vec3 disp, inout vec2 grad) 
 
 vec2 rot(vec2 v, float a) { return vec2(v.x * cos(a) - v.y * sin(a), v.x * sin(a) + v.y * cos(a)); }
 
-void waves(vec2 p, float amp, out vec3 disp, out vec2 grad) {
+void waves(vec2 p, float big, float small, out vec3 disp, out vec2 grad) {
 	disp = vec3(0.0);
 	grad = vec2(0.0);
 	vec2 wd = normalize(wind_dir);
-	wave(p, wd, 64.0, 0.80 * amp, disp, grad);
-	wave(p, rot(wd, 0.6), 33.0, 0.44 * amp, disp, grad);
-	wave(p, rot(wd, -0.7), 19.0, 0.25 * amp, disp, grad);
-	wave(p, rot(wd, 1.3), 10.5, 0.12 * amp, disp, grad);
-	wave(p, rot(wd, -1.6), 6.0, 0.06 * amp, disp, grad);
+	wave(p, wd, 64.0, 0.80 * big, disp, grad);
+	wave(p, rot(wd, 0.6), 33.0, 0.44 * big, disp, grad);
+	wave(p, rot(wd, -0.7), 19.0, 0.25 * big, disp, grad);
+	wave(p, rot(wd, 1.3), 10.5, 0.12 * small, disp, grad);
+	wave(p, rot(wd, -1.6), 6.0, 0.06 * small, disp, grad);
 }
 
 void vertex() {
 	vec3 world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	float dist = length(world.xz - CAMERA_POSITION_WORLD.xz);
-	fade = 1.0 - smoothstep(220.0, 1100.0, dist);
+	float dist = length(world.xz - cam_xz);
+	// mesmas distâncias de Ocean.BIG_FADE / SMALL_FADE (CPU)
+	fade = 1.0 - smoothstep(190.0, 250.0, dist);
+	float small = 1.0 - smoothstep(60.0, 90.0, dist);
 	vec3 disp;
 	vec2 grad;
-	waves(world.xz, sea_state * fade, disp, grad);
+	waves(world.xz, sea_state * fade, sea_state * small, disp, grad);
 	VERTEX += disp;
 	wave_h = disp.y;
 	wpos = world + disp;
@@ -60,9 +63,10 @@ void vertex() {
 void fragment() {
 	float dist = length(wpos.xz - CAMERA_POSITION_WORLD.xz);
 	float nf = 1.0 - smoothstep(600.0, 3500.0, dist);
+	float nsmall = 1.0 - smoothstep(150.0, 700.0, dist) * 0.85;
 	vec3 disp;
 	vec2 grad;
-	waves(wpos.xz, sea_state * max(nf, 0.15), disp, grad);
+	waves(wpos.xz, sea_state * max(nf, 0.15), sea_state * nsmall, disp, grad);
 	vec3 n = normalize(vec3(-grad.x, 1.0, -grad.y));
 	// ondulações finas
 	vec2 uv1 = wpos.xz * 0.045 + vec2(wave_time * 0.018, wave_time * 0.011);

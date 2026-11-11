@@ -39,17 +39,17 @@ const RANK_MERIT := [0, 150, 450, 1000, 2000, 3600]
 # speed em m/s (escala de jogo), turn em rad/s
 const SHIPS := [
 	{"id": "saveiro", "name": "Saveiro", "len": 16.0, "beam": 4.6, "masts": 1, "rig": "fore", "guns": 4, "hp": 320,
-		"crew": 40, "cargo": 40, "speed": 16.0, "turn": 0.62, "price": 2500, "castle": 0.0, "rank": 0},
+		"crew": 40, "cargo": 40, "speed": 11.0, "turn": 0.42, "price": 2500, "castle": 0.0, "rank": 0},
 	{"id": "escuna", "name": "Escuna", "len": 21.0, "beam": 5.4, "masts": 2, "rig": "fore", "guns": 6, "hp": 480,
-		"crew": 60, "cargo": 70, "speed": 15.5, "turn": 0.52, "price": 6500, "castle": 0.6, "rank": 0},
+		"crew": 60, "cargo": 70, "speed": 10.5, "turn": 0.37, "price": 6500, "castle": 0.6, "rank": 0},
 	{"id": "brigue", "name": "Brigue", "len": 27.0, "beam": 7.0, "masts": 2, "rig": "square", "guns": 9, "hp": 760,
-		"crew": 100, "cargo": 120, "speed": 14.0, "turn": 0.43, "price": 14000, "castle": 1.0, "rank": 1},
+		"crew": 100, "cargo": 120, "speed": 10.0, "turn": 0.31, "price": 14000, "castle": 1.0, "rank": 1},
 	{"id": "fragata", "name": "Fragata", "len": 37.0, "beam": 9.0, "masts": 3, "rig": "square", "guns": 14, "hp": 1300,
-		"crew": 220, "cargo": 200, "speed": 13.2, "turn": 0.34, "price": 32000, "castle": 1.6, "rank": 2},
+		"crew": 220, "cargo": 200, "speed": 9.5, "turn": 0.26, "price": 32000, "castle": 1.6, "rank": 2},
 	{"id": "galeao", "name": "Galeão", "len": 41.0, "beam": 11.0, "masts": 3, "rig": "square", "guns": 16, "hp": 1750,
-		"crew": 260, "cargo": 420, "speed": 10.5, "turn": 0.26, "price": 46000, "castle": 3.2, "rank": 2},
+		"crew": 260, "cargo": 420, "speed": 8.0, "turn": 0.21, "price": 46000, "castle": 3.2, "rank": 2},
 	{"id": "nau", "name": "Nau de Linha", "len": 52.0, "beam": 13.0, "masts": 3, "rig": "square", "guns": 26, "hp": 2800,
-		"crew": 420, "cargo": 260, "speed": 9.8, "turn": 0.21, "price": 95000, "castle": 2.6, "rank": 4},
+		"crew": 420, "cargo": 260, "speed": 7.5, "turn": 0.18, "price": 95000, "castle": 2.6, "rank": 4},
 ]
 
 const UPGRADES := [

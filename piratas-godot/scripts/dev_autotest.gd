@@ -48,6 +48,14 @@ func _run() -> void:
 	main.ctl.sail_target = 1.0
 	await _wait(6.0)
 	await _shot("03_velejando")
+	var y0: float = main.world.player.yaw
+	main.ctl.steer_touch = true
+	main.ctl.steer_input = 1.0
+	await _wait(3.0)
+	await _shot("03b_curva")
+	print("Curva: yaw ", y0, " -> ", main.world.player.yaw, " vel ", main.world.player.speed)
+	main.ctl.steer_input = 0.0
+	main.ctl.steer_touch = false
 	main.ctl.cycle_camera()
 	await _wait(1.0)
 	await _shot("04_timao")
