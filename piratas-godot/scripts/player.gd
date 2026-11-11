@@ -145,7 +145,8 @@ func mount(h: Horse) -> void:
 	var rr := RandomNumberGenerator.new()
 	_rider = Assets.person("oficial", rr)
 	h.add_child(_rider["root"])
-	_rider["root"].position = Vector3(0, 1.05, 0.1)
+	# costas do cavalo a ~1,38 m; quadril do capitão sentado fica 0,43 m acima dos pés
+	_rider["root"].position = Vector3(0, 1.0, 0.2)
 	Assets.play(_rider, "Sitting")
 	mode = Mode.HORSE
 	_horse_cam_yaw = h.yaw

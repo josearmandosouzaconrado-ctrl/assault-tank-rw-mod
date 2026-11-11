@@ -164,6 +164,21 @@ func _run() -> void:
 	print("Cavalo andou até ", h.global_position, " vel ", h.speed)
 	main.ctl.move_vec = Vector2.ZERO
 	main.ctl.dismount()
+	# vista do forte e das casas
+	var fpos: Vector3 = isl.fort_pos
+	var tcv: Vector3 = isl.town_center
+	var view := tcv.lerp(fpos, 0.25)
+	main.ctl.foot_pos = Vector3(view.x, w.walk_height(view.x, view.z), view.z)
+	var tf: Vector3 = fpos - main.ctl.foot_pos
+	main.ctl.foot_yaw = atan2(-tf.x, -tf.z)
+	main.ctl.foot_pitch = 0.12
+	await _wait(1.5)
+	await _shot("16_forte")
+	main.ctl.foot_pos = Vector3(tcv.x, w.walk_height(tcv.x, tcv.z), tcv.z) + Vector3(isl.dir.x, 0, isl.dir.y) * 6.0
+	main.ctl.foot_yaw = atan2(isl.dir.x, isl.dir.y)
+	main.ctl.foot_pitch = 0.05
+	await _wait(1.0)
+	await _shot("17_praca")
 	Game.treasure = {"pos": Vector2(main.ctl.foot_pos.x, main.ctl.foot_pos.z) + Vector2(2, 0), "island": isl.name}
 	main.ctl.start_dig()
 	await _wait(3.2)

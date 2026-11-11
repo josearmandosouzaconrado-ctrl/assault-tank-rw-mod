@@ -9,7 +9,7 @@ as casas, o forte, o cais e a vegetação usam modelos 3D gratuitos (CC0) da **K
 
 ## Baixar o APK
 
-APK pronto: [`apk/MaresDeFortuna-v1.4.apk`](../apk/MaresDeFortuna-v1.4.apk) (Android 7 ou superior).
+APK pronto: [`apk/MaresDeFortuna-v1.5.apk`](../apk/MaresDeFortuna-v1.5.apk) (Android 7 ou superior).
 
 Cada push na pasta `piratas-godot/` gera um APK pelo GitHub Actions (workflow *Mares de Fortuna (Godot) - APK*):
 

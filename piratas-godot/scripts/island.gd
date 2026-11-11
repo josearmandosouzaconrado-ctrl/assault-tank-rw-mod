@@ -24,6 +24,7 @@ static var _veg_mat: StandardMaterial3D
 static var _build_mat: StandardMaterial3D
 static var _flag_shader: Shader
 static var _road_mat: StandardMaterial3D
+static var _stone_shader: Shader
 
 
 func _init(points: PackedVector2Array, rads: PackedFloat32Array, height: float, s: int, nm := "") -> void:
@@ -132,6 +133,7 @@ static func warm_caches() -> void:
 	_rock_mesh()
 	ShipBuilder.glow_material()
 	_flag_shader = load("res://shaders/flag.gdshader")
+	_stone_shader = load("res://shaders/stone.gdshader")
 
 
 # --------------------------------------------------------------- vegetação

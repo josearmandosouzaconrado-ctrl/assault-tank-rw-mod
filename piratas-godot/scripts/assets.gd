@@ -7,7 +7,7 @@ const PEOPLE_M := ["Smooth_Male_Shirt", "Smooth_Male_LongSleeve", "Smooth_Male_C
 const PEOPLE_F := ["Smooth_Female_Dress", "Smooth_Female_Casual", "Smooth_Female_Alternative"]
 const OFFICER := "Smooth_Male_Suit"
 const PERSON_SCALE := 0.37     # 4,74 unidades -> 1,75 m
-const HORSE_SCALE := 0.4
+const HORSE_SCALE := 0.35
 
 static var _scenes := {}
 static var _meshes := {}
@@ -153,7 +153,7 @@ static func horse() -> Dictionary:
 static func warm() -> void:
 	for d in [["town", ["wall", "wall-door", "wall-window-shutters", "wall-window-small", "wall-wood", "wall-wood-window-shutters",
 			"wall-wood-door", "wall-wood-window-small", "roof-gable", "roof-gable-end", "roof-point", "chimney", "stall-red", "stall-green",
-			"fountain-round", "lantern", "cart", "banner-red", "banner-green", "wall-doorway-round", "overhang", "wall-window-round"]],
+			"fountain-round", "lantern", "cart", "banner-red", "banner-green", "wall-doorway-round", "overhang", "wall-window-round", "roof", "fountain-center"]],
 		["pirate", ["barrel", "crate", "crate-bottles", "chest", "cannon", "tower-complete-large", "tower-complete-small", "castle-wall",
 			"castle-gate", "structure-platform-dock", "structure", "structure-roof", "palm-detailed-straight", "palm-detailed-bend",
 			"palm-straight", "palm-bend", "rocks-a", "rocks-b", "rocks-c", "rocks-sand-a", "rocks-sand-b", "boat-row-small"]],

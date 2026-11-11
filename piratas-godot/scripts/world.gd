@@ -1093,7 +1093,7 @@ func take_over_ship(s: Ship) -> void:
 func fort_hit(p: Vector3) -> int:
 	for i in port_islands.size():
 		var f := port_islands[i].fort_pos
-		if absf(p.x - f.x) < 22.0 and absf(p.z - f.z) < 22.0 and p.y < f.y + 11.0:
+		if absf(p.x - f.x) < 25.0 and absf(p.z - f.z) < 25.0 and p.y < f.y + 9.5:
 			return i
 	return -1
 
