@@ -142,13 +142,11 @@ func mount(h: Horse) -> void:
 	h.get_parent().remove_child(h)
 	World.I.add_child(h)
 	h.global_position = gp
-	_rider = TownLife.make_person(Color(0.35, 0.12, 0.08), Color(0.85, 0.8, 0.7), TownLife.SKINS[0], 1)
+	var rr := RandomNumberGenerator.new()
+	_rider = Assets.person("oficial", rr)
 	h.add_child(_rider["root"])
-	_rider["root"].position = Vector3(0, 1.0, -0.1)
-	_rider["leg_l"].rotation = Vector3(-1.2, 0, -0.35)
-	_rider["leg_r"].rotation = Vector3(-1.2, 0, 0.35)
-	_rider["arm_l"].rotation.x = -0.7
-	_rider["arm_r"].rotation.x = -0.7
+	_rider["root"].position = Vector3(0, 1.05, 0.1)
+	Assets.play(_rider, "Sitting")
 	mode = Mode.HORSE
 	_horse_cam_yaw = h.yaw
 	orbit_yaw = 0.0
@@ -184,9 +182,10 @@ func _spawn_followers() -> void:
 		f["root"].queue_free()
 	followers.clear()
 	var n := mini(Game.soldiers, 6)
-	var coat: Color = Game.NATIONS[Game.career]["color"] if Game.career != Game.PIR else Color(0.3, 0.25, 0.2)
+	var rr := RandomNumberGenerator.new()
+	rr.seed = 7
 	for i in n:
-		var p := TownLife.make_person(coat, Color(0.85, 0.82, 0.75), TownLife.SKINS[i % TownLife.SKINS.size()], 1, true)
+		var p := Assets.person("homem" if Game.career == Game.PIR else "oficial", rr)
 		World.I.add_child(p["root"])
 		p["root"].global_position = foot_pos + Vector3(i - n * 0.5, 0, 3)
 		p["phase"] = 0.0
@@ -210,8 +209,11 @@ func _update_followers(delta: float, leader: Vector3, lyaw: float) -> void:
 			pos += d.normalized() * minf(d.length(), delta * (4.0 + d.length() * 1.2))
 			root.rotation.y = lerp_angle(root.rotation.y, atan2(-d.x, -d.y), delta * 6.0)
 			p["phase"] += delta * 7.0
-		root.global_position = Vector3(pos.x, w.terrain_height(pos.x, pos.y), pos.y)
-		TownLife.animate_walk(p, p["phase"], 1.0 if moving else 0.0)
+		root.global_position = Vector3(pos.x, w.walk_height(pos.x, pos.y), pos.y)
+		if moving:
+			Assets.play(p, "Run" if d.length() > 4.0 else "Walk")
+		else:
+			Assets.play(p, "Idle")
 
 
 ## Mantém a vida da cidade (moradores, cavalos) quando o jogador está a pé perto de uma cidade.

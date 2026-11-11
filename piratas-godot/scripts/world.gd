@@ -96,6 +96,8 @@ func _ready() -> void:
 	add_child(rain)
 	_generate_world()
 	Island.warm_caches()
+	Assets.warm()
+	TerrainTile.forest_noise()
 	for i in port_islands.size():
 		_fort_reload.append(_rng.randf_range(0.0, 4.0))
 		port_aggro.append(false)
@@ -332,6 +334,15 @@ func building_blocked(x: float, z: float) -> bool:
 	return false
 
 
+## Distância até o centro da cidade mais próxima.
+func town_distance(x: float, z: float) -> float:
+	var best := INF
+	for ps in port_islands:
+		var d := Vector2(x - ps.town_center.x, z - ps.town_center.z).length()
+		best = minf(best, d)
+	return best
+
+
 ## Vegetação não nasce nas cidades nem nas estradas.
 func veg_blocked(x: float, z: float) -> bool:
 	for ps in port_islands:
@@ -521,7 +532,7 @@ func _setup_environment() -> void:
 	env.fog_sky_affect = 0.0
 	env.fog_aerial_perspective = 0.6
 	env.adjustment_enabled = true
-	env.adjustment_saturation = 1.12
+	env.adjustment_saturation = 1.0
 	env.adjustment_contrast = 1.05
 	var we := WorldEnvironment.new()
 	we.environment = env

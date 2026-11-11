@@ -93,7 +93,7 @@ func settle(w: World) -> void:
 	var tw := t2 - dir * 10.0
 	blocks.append(Vector3(tw.x, tw.y, 4.2))
 	blocks.append(Vector3(t2.x, t2.y, 2.4))
-	blocks.append(Vector3(tavern_pos.x, tavern_pos.z, 8.0))
+	blocks.append(Vector3(tavern_pos.x, tavern_pos.z, 7.0))
 	blocks.append(Vector3(fort_pos.x, fort_pos.z, 17.0))
 	var db := Basis(Vector3.UP, atan2(dir.x, dir.y))
 	for k in 3:
@@ -135,6 +135,46 @@ func set_owner_flag(nat: int) -> void:
 
 
 # --------------------------------------------------------------- construção (pode rodar numa thread)
+const CW := 3.4   # largura de um módulo de casa
+const FH := 3.1   # altura de um andar
+const CD := 5.2   # profundidade da casa
+
+
+## Casa montada com peças da Kenney: n módulos de largura, 1 ou 2 andares, telhado de duas águas.
+func _house_k(mg: Assets.Merger, mt: Material, origin: Vector3, ang: float, n: int, floors: int, rng: RandomNumberGenerator,
+		wood_upper: bool, cw := CW, fh := FH, cd := CD, door := true) -> void:
+	var base := Transform3D(Basis(Vector3.UP, ang), origin) * Transform3D(Basis.from_scale(Vector3(cw, fh, cd)), Vector3.ZERO)
+	var door_cell := n / 2
+	for f in floors:
+		var wood := wood_upper and f > 0
+		var plain := "wall-wood" if wood else "wall"
+		var window := "wall-wood-window-shutters" if wood else "wall-window-shutters"
+		var small := "wall-wood-window-small" if wood else "wall-window-small"
+		for cx in n:
+			var c := Vector3(cx - (n - 1) * 0.5, f, 0)
+			var front := window if rng.randf() < 0.75 else plain
+			if f == 0 and cx == door_cell and door:
+				front = "wall-wood-door" if wood_upper and rng.randf() < 0.5 else "wall-door"
+			mg.add(Assets.town(front), base * Transform3D(Basis(Vector3.UP, -PI * 0.5), c), mt)
+			mg.add(Assets.town(window if rng.randf() < 0.5 else plain), base * Transform3D(Basis(Vector3.UP, PI * 0.5), c), mt)
+			if cx == n - 1:
+				mg.add(Assets.town(small if rng.randf() < 0.5 else plain), base * Transform3D(Basis(), c), mt)
+			if cx == 0:
+				mg.add(Assets.town(small if rng.randf() < 0.5 else plain), base * Transform3D(Basis(Vector3.UP, PI), c), mt)
+	for cx in n:
+		var c := Vector3(cx - (n - 1) * 0.5, floors, 0)
+		if n == 1:
+			mg.add(Assets.town("roof-point"), base * Transform3D(Basis(), c), mt)
+		elif cx == 0:
+			mg.add(Assets.town("roof-gable-end"), base * Transform3D(Basis(), c), mt)
+		elif cx == n - 1:
+			mg.add(Assets.town("roof-gable-end"), base * Transform3D(Basis(Vector3.UP, PI), c), mt)
+		else:
+			mg.add(Assets.town("roof-gable"), base * Transform3D(Basis(), c), mt)
+	if rng.randf() < 0.45 and n > 1:
+		mg.add(Assets.town("chimney"), base * Transform3D(Basis(), Vector3((n - 1) * 0.5 - 0.1, floors + 0.05, -0.15)), mt)
+
+
 func build() -> void:
 	Island._materials()
 	var w := World.I
@@ -143,82 +183,93 @@ func build() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = idx * 17 + 3
 	var nat: int = Game.port_owner[idx]
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var mt := Assets.town_material(nation)
+	var mp := Assets.pirate_material()
+	var mg := Assets.Merger.new()
 	var gs := SurfaceTool.new()
 	gs.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var ang := atan2(dir.x, dir.y)
-	var walls := [Color(0.92, 0.88, 0.78), Color(0.95, 0.85, 0.65), Color(0.85, 0.75, 0.6)]
-	var roofs := [Color(0.62, 0.25, 0.15), Color(0.55, 0.3, 0.2)]
-	match nation:
-		Game.ENG:
-			walls = [Color(0.6, 0.32, 0.24), Color(0.75, 0.7, 0.62), Color(0.55, 0.42, 0.3)]
-			roofs = [Color(0.3, 0.3, 0.32), Color(0.4, 0.3, 0.22)]
-		Game.HOL:
-			walls = [Color(0.62, 0.28, 0.2), Color(0.9, 0.82, 0.55), Color(0.4, 0.55, 0.62), Color(0.85, 0.55, 0.35)]
-			roofs = [Color(0.55, 0.22, 0.14), Color(0.3, 0.28, 0.28)]
-		Game.FRA:
-			walls = [Color(0.9, 0.84, 0.7), Color(0.78, 0.72, 0.6), Color(0.88, 0.78, 0.58)]
-			roofs = [Color(0.36, 0.38, 0.42), Color(0.6, 0.32, 0.2)]
-		Game.PIR:
-			walls = [Color(0.48, 0.38, 0.27), Color(0.4, 0.32, 0.22), Color(0.55, 0.45, 0.32)]
-			roofs = [Color(0.62, 0.55, 0.35), Color(0.38, 0.3, 0.2)]
-		Game.POR:
-			walls = [Color(0.96, 0.95, 0.9), Color(0.95, 0.85, 0.45), Color(0.55, 0.7, 0.85)]
-			roofs = [Color(0.7, 0.32, 0.18), Color(0.62, 0.28, 0.16)]
+	var tc := Vector2(town_center.x, town_center.z)
+	var wood_style := nation == Game.ENG or nation == Game.HOL or nation == Game.FRA
+	# casas viradas para a praça
 	for wp in houses:
 		var h := w.terrain_height(wp.x, wp.y)
-		var hw := rng.randf_range(7, 12)
-		var dd := rng.randf_range(7, 11)
-		var hh := rng.randf_range(4.5, 8.5) * (1.4 if nation == Game.HOL else 1.0)
-		var a := ang + (rng.randi() % 4) * PI * 0.5
-		Island._house(st, gs, Vector3(wp.x, h - 0.5, wp.y), Basis(Vector3.UP, a), hw, dd, hh, walls[rng.randi() % walls.size()], roofs[rng.randi() % roofs.size()])
-	# praça e igreja
-	var cb := Basis(Vector3.UP, ang)
-	var cpos := town_center - Vector3(0, 0.5, 0) - Vector3(dir.x, 0, dir.y) * 6.0
-	Island._house(st, gs, cpos - cb * Vector3(0, 0, 18), cb, 12, 26, 10, Color(0.93, 0.9, 0.82), Color(0.55, 0.28, 0.18))
-	ShipBuilder._box(st, Transform3D(cb, cpos - cb * Vector3(0, -11, 4)), Vector3(6, 22, 6), Color(0.93, 0.9, 0.82))
-	ShipBuilder._box(st, Transform3D(cb, cpos - cb * Vector3(0, -23.5, 4)), Vector3(4, 3, 4), Color(0.55, 0.28, 0.18))
-	# poço/chafariz no centro da praça
-	ShipBuilder._tube(st, town_center + Vector3(0, -0.3, 0), town_center + Vector3(0, 0.9, 0), 2.0, 2.0, Color(0.6, 0.58, 0.52), 12)
-	# taverna (com placa) e estábulo
-	var tb := Basis(Vector3.UP, ang + PI)
-	Island._house(st, gs, tavern_pos - Vector3(0, 0.5, 0), tb, 14, 11, 6.5, Color(0.55, 0.38, 0.24), Color(0.4, 0.22, 0.14))
-	ShipBuilder._box(st, Transform3D(tb, tavern_pos + tb * Vector3(3.5, 4.0, 6.2)), Vector3(2.2, 1.2, 0.12), Color(0.85, 0.65, 0.2))
-	var sb := Basis(Vector3.UP, ang + PI * 0.5)
-	ShipBuilder._box(st, Transform3D(sb, stable_pos + Vector3(0, 2.0, 0)), Vector3(16, 4.0, 0.4), Color(0.45, 0.32, 0.2))
-	ShipBuilder._box(st, Transform3D(sb, stable_pos + sb * Vector3(0, 4.2, 1.5)), Vector3(17, 0.3, 4.5), Color(0.5, 0.42, 0.25))
-	for k in 5:
-		ShipBuilder._tube(st, stable_pos + sb * Vector3(-8 + k * 4, 0, 3.6), stable_pos + sb * Vector3(-8 + k * 4, 4.2, 3.6), 0.15, 0.15, Color(0.4, 0.3, 0.2), 5)
-	# cais
+		var to := tc - wp
+		var face := atan2(to.x, to.y)
+		face = snappedf(face, PI * 0.5) + rng.randf_range(-0.05, 0.05)
+		var n := rng.randi_range(2, 3)
+		var floors := 2 if rng.randf() < (0.55 if nation == Game.HOL else 0.35) else 1
+		_house_k(mg, mt, Vector3(wp.x, h - 0.15, wp.y), face, n, floors, rng, wood_style)
+		# luz nas janelas à noite
+		var hb := Basis(Vector3.UP, face)
+		ShipBuilder._box(gs, Transform3D(hb, Vector3(wp.x, h + 1.6, wp.y) + hb * Vector3(0, 0, CD * 0.5 + 0.02)), Vector3(CW * n * 0.6, 0.5, 0.05), Color(1, 1, 1))
+	# igreja com torre
+	var cpos := town_center - Vector3(0, 0.15, 0) - Vector3(dir.x, 0, dir.y) * 24.0
+	_house_k(mg, mt, cpos, ang + PI * 0.5, 4, 2, rng, false, 3.4, 3.8, 7.0)
+	var tpos := town_center - Vector3(0, 0.15, 0) - Vector3(dir.x, 0, dir.y) * 10.0
+	_house_k(mg, mt, tpos, ang, 1, 5, rng, false, 4.2, 3.6, 4.2, true)
+	# taverna
+	var tb := ang + PI
+	_house_k(mg, mt, tavern_pos - Vector3(0, 0.15, 0), tb, 3, 2, rng, true)
+	var tbb := Basis(Vector3.UP, tb)
+	mg.add(Assets.town("banner-red"), Transform3D(tbb * Basis.from_scale(Vector3(3.4, 3.1, 3.4)) * Basis(Vector3.UP, -PI * 0.5), tavern_pos + tbb * Vector3(-CW, 2.4, CD * 0.5 + 0.2)), mt)
+	# praça: chafariz, barracas, lampiões e carroças
+	mg.add(Assets.town("fountain-round"), Transform3D(Basis.from_scale(Vector3(3.5, 3.0, 3.5)), town_center + Vector3(0, -0.1, 0)), mt)
+	for k in 4:
+		var a2 := ang + PI * 0.25 + k * PI * 0.5
+		var sp := town_center + Vector3(sin(a2), 0, cos(a2)) * 15.0
+		sp.y = w.terrain_height(sp.x, sp.z)
+		mg.add(Assets.town("stall-red" if k % 2 == 0 else "stall-green"), Transform3D(Basis(Vector3.UP, a2 + PI).scaled(Vector3(3.0, 2.6, 3.0)), sp), mt)
+	for k in 6:
+		var a3 := ang + k * TAU / 6.0
+		var lp := town_center + Vector3(sin(a3), 0, cos(a3)) * 9.0
+		lp.y = w.terrain_height(lp.x, lp.z)
+		mg.add(Assets.town("lantern"), Transform3D(Basis.from_scale(Vector3.ONE * 2.2), lp), mt)
+		ShipBuilder._box(gs, Transform3D(Basis(), lp + Vector3(0, 3.1, 0)), Vector3(0.3, 0.35, 0.3), Color(1, 1, 1))
+	for k in 2:
+		var cp2 := town_center + Vector3(dir.x, 0, dir.y) * (20.0 + k * 6.0) + Vector3(-dir.y, 0, dir.x) * (8.0 - k * 16.0)
+		cp2.y = w.terrain_height(cp2.x, cp2.z)
+		mg.add(Assets.town("cart"), Transform3D(Basis(Vector3.UP, ang + k).scaled(Vector3.ONE * 2.6), cp2), mt)
+	# cais de tábuas
 	var cp := Vector3(coast_point.x, 0.0, coast_point.y)
 	var db := Basis(Vector3.UP, ang)
-	var plank := Color(0.45, 0.33, 0.22)
-	ShipBuilder._box(st, Transform3D(db, cp + db * Vector3(0, 1.4, 30)), Vector3(7, 0.5, 80), plank)
-	for k in 9:
-		for sx in [-3.2, 3.2]:
-			ShipBuilder._box(st, Transform3D(db, cp + db * Vector3(sx, -2.0, k * 9.5 - 6.0)), Vector3(0.6, 7.0, 0.6), plank.darkened(0.3))
-	ShipBuilder._box(st, Transform3D(db, cp + db * Vector3(0, 1.4, 66)), Vector3(22, 0.5, 8), plank)
+	for k in 11:
+		mg.add(Assets.pirate("structure-platform-dock"), Transform3D(db * Basis.from_scale(Vector3(2.9, 1.3, 2.8)), cp + db * Vector3(0, 0, -3.5 + k * 7.0)), mp)
+	for sx in [-1.0, 1.0]:
+		mg.add(Assets.pirate("structure-platform-dock"), Transform3D(db * Basis.from_scale(Vector3(2.9, 1.3, 2.8)), cp + db * Vector3(sx * 7.25, 0, 66.0)), mp)
+	# barris, caixotes e botes no cais
+	for k in 10:
+		var bp := cp + db * Vector3(rng.randf_range(-2.8, 2.8), 1.7, rng.randf_range(4.0, 60.0))
+		var piece: String = ["barrel", "crate", "crate-bottles", "barrel"][k % 4]
+		mg.add(Assets.pirate(piece), Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * 1.0), bp), mp)
+	for k in 2:
+		mg.add(Assets.pirate("boat-row-small"), Transform3D(db * Basis(Vector3.UP, 0.3 * k).scaled(Vector3.ONE * 2.2), cp + db * Vector3(6.5 + k * 3.0, 0.1, 20.0 + k * 9.0)), mp)
+	# armazéns do porto
 	for k in 3:
-		var wp := cp + db * Vector3(-24 + k * 24, 0, -20)
-		var h := w.terrain_height(wp.x, wp.z)
-		Island._house(st, null, Vector3(wp.x, maxf(h, 1.0) - 0.5, wp.z), db, 14, 10, 6, Color(0.5, 0.38, 0.26), Color(0.42, 0.3, 0.2))
-	# forte
+		var wpos := cp + db * Vector3(-24 + k * 24, 0, -20)
+		var h2 := w.terrain_height(wpos.x, wpos.z)
+		_house_k(mg, mt, Vector3(wpos.x, maxf(h2, 1.0) - 0.15, wpos.z), ang + PI, 3, 1, rng, true, 4.0, 3.6, 7.0)
+		for j in 3:
+			var bp2 := Vector3(wpos.x, maxf(h2, 1.0), wpos.z) + db * Vector3(-4.0 + j * 3.0, 0, 5.0)
+			mg.add(Assets.pirate("crate" if j % 2 == 0 else "barrel"), Transform3D(Basis(Vector3.UP, rng.randf() * TAU), bp2), mp)
+	# forte: torres nos cantos, muralhas e canhões virados para o mar
 	var fp := fort_pos
 	var fb := Basis(Vector3.UP, ang + 0.6)
-	var stone := Color(0.6, 0.57, 0.5)
 	var fs := 30.0
 	for k in 4:
 		var kb := fb * Basis(Vector3.UP, k * PI * 0.5)
-		ShipBuilder._box(st, Transform3D(kb, fp + kb * Vector3(0, 3.0, fs * 0.5)), Vector3(fs, 9.0, 3.0), stone)
-		ShipBuilder._tube(st, fp + kb * Vector3(fs * 0.5, -1.5, fs * 0.5), fp + kb * Vector3(fs * 0.5, 9.5, fs * 0.5), 4.2, 3.8, stone.darkened(0.1), 8)
-		for g in 3:
-			var gp := fp + kb * Vector3(-8.0 + g * 8.0, 7.8, fs * 0.5)
-			ShipBuilder._tube(st, gp, gp + kb * Vector3(0, 0.3, 3.2), 0.32, 0.26, Color(0.1, 0.1, 0.1), 6)
-	ShipBuilder._box(st, Transform3D(fb, fp + Vector3(0, 1.5, 0)), Vector3(fs - 2, 5.0, fs - 2), stone.darkened(0.2))
+		mg.add(Assets.pirate("tower-complete-large"), Transform3D(kb.scaled(Vector3.ONE * 1.25), fp + kb * Vector3(fs * 0.5, -0.5, fs * 0.5)), mp)
+		for j in 5:
+			var t := (j + 0.5) / 5.0
+			var piece := "castle-gate" if (k == 2 and j == 2) else "castle-wall"
+			if true:
+				mg.add(Assets.pirate(piece), Transform3D(kb.scaled(Vector3(2.0, 2.0, 2.0)), fp + kb * Vector3(lerpf(-fs * 0.4, fs * 0.4, t), -0.5, fs * 0.5)), mp)
+	for g in 4:
+		var gp := fp + fb * Vector3(-9.0 + g * 6.0, 0.0, fs * 0.5 + 4.5)
+		gp.y = maxf(w.terrain_height(gp.x, gp.z), fp.y)
+		mg.add(Assets.pirate("cannon"), Transform3D(fb.scaled(Vector3.ONE * 1.6), gp), mp)
 	var mi := MeshInstance3D.new()
-	mi.mesh = st.commit()
-	mi.material_override = Island._build_mat
+	mi.mesh = mg.commit()
 	root.add_child(mi)
 	var pole := MeshInstance3D.new()
 	var pm := CylinderMesh.new()
@@ -244,20 +295,27 @@ func build() -> void:
 	fort_ruin = Node3D.new()
 	fort_ruin.position = fp + Vector3(0, 8, 0)
 	root.add_child(fort_ruin)
-	# ruas da cidade: cais -> praça -> forte, praça -> estábulo/taverna
 	var streets: Array[PackedVector2Array] = [
-		PackedVector2Array([coast_point, Vector2(town_center.x, town_center.z)]),
-		PackedVector2Array([Vector2(town_center.x, town_center.z), Vector2(fort_pos.x, fort_pos.z)]),
-		PackedVector2Array([Vector2(town_center.x, town_center.z), Vector2(stable_pos.x, stable_pos.z)]),
+		PackedVector2Array([coast_point, tc]),
+		PackedVector2Array([tc, Vector2(fort_pos.x, fort_pos.z)]),
+		PackedVector2Array([tc, Vector2(stable_pos.x, stable_pos.z)]),
 	]
-	for s in streets:
-		var rm := road_mesh(w, s, 6.0)
+	for st2 in streets:
+		var rm := road_mesh(w, st2, 6.0)
 		if rm:
 			var rmi := MeshInstance3D.new()
 			rmi.mesh = rm
 			rmi.material_override = Island._road_mat
 			rmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			root.add_child(rmi)
+	# estábulo (estrutura de madeira do kit pirata)
+	var sb := Basis(Vector3.UP, ang + PI * 0.5)
+	var stable := Assets.Merger.new()
+	for k in 3:
+		stable.add(Assets.pirate("structure"), Transform3D(sb.scaled(Vector3(2.0, 1.9, 2.0)), stable_pos + sb * Vector3(-5.0 + k * 5.0, -0.1, 0.0)), mp)
+	var smi := MeshInstance3D.new()
+	smi.mesh = stable.commit()
+	root.add_child(smi)
 	node = root
 
 

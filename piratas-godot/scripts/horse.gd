@@ -50,11 +50,15 @@ func drive(delta: float, throttle: float, turn: float) -> void:
 	# inclinar no relevo
 	var hb := w.terrain_height(np.x + forward().x, np.y + forward().y)
 	rotation.x = clampf(atan2(hb - h1, 1.0), -0.35, 0.35)
-	_phase += delta * absf(speed) * 1.3
-	TownLife.animate_horse(parts, _phase, clampf(absf(speed) / 4.0, 0.0, 1.0))
+	if absf(speed) < 0.3:
+		Assets.play(parts, "Idle")
+	elif absf(speed) < 6.0:
+		Assets.play(parts, "Walk", clampf(absf(speed) / 3.0, 0.6, 1.6))
+	else:
+		Assets.play(parts, "Run", clampf(absf(speed) / 11.0, 0.7, 1.3))
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	if not ridden:
 		speed = 0.0
-		TownLife.animate_horse(parts, 0.0, 0.0)
+		Assets.play(parts, "Idle")

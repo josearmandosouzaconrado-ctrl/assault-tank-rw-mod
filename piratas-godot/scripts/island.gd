@@ -121,7 +121,7 @@ static func _materials() -> void:
 	_build_mat.roughness = 0.9
 	_build_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_road_mat = StandardMaterial3D.new()
-	_road_mat.albedo_color = Color(0.55, 0.45, 0.32)
+	_road_mat.albedo_color = Color(0.46, 0.38, 0.27)
 	_road_mat.roughness = 1.0
 
 

@@ -154,43 +154,37 @@ func setup(ps: PortSite) -> void:
 	site = ps
 	_rng.seed = ps.idx * 101 + Time.get_ticks_msec()
 	var w := World.I
-	var nat: int = Game.port_owner[ps.idx]
-	var n_people: int = [7, 11, 15][Game.quality]
+	var n_people: int = [6, 10, 14][Game.quality]
 	for i in n_people:
-		var dress := _rng.randf() < 0.4
-		var p := make_person(CLOTHES[_rng.randi() % CLOTHES.size()], CLOTHES[_rng.randi() % CLOTHES.size()].darkened(0.3),
-			SKINS[_rng.randi() % SKINS.size()], [0, 3, 4, 2, 1][_rng.randi() % 5] if not dress else 4, false, dress)
+		var p := Assets.person("mulher" if _rng.randf() < 0.45 else "homem", _rng)
 		var start := _random_spot()
 		add_child(p["root"])
 		p["root"].global_position = Vector3(start.x, w.terrain_height(start.x, start.y), start.y)
-		people.append({"p": p, "target": _random_spot(), "wait": _rng.randf() * 3.0, "speed": _rng.randf_range(1.1, 1.6),
-			"kind": "morador", "phase": _rng.randf() * TAU, "name": "Morador"})
-	# guardas com a farda da nação dona do porto
-	var uniform: Color = Game.NATIONS[nat]["color"] if nat != Game.PIR else Color(0.3, 0.25, 0.2)
+		people.append({"p": p, "target": _random_spot(), "wait": _rng.randf() * 3.0, "speed": _rng.randf_range(1.1, 1.5),
+			"kind": "morador", "phase": 0.0, "name": "Morador"})
+	# guardas (oficiais) perto da praça e do forte
 	var tc := Vector2(ps.town_center.x, ps.town_center.z)
 	var fp := Vector2(ps.fort_pos.x, ps.fort_pos.z)
 	for i in 3:
-		var g := make_person(uniform, Color(0.9, 0.88, 0.8), SKINS[_rng.randi() % SKINS.size()], 1, true)
+		var g := Assets.person("oficial", _rng)
 		add_child(g["root"])
-		var spot: Vector2 = tc.lerp(fp, 0.35 + i * 0.25) + Vector2(_rng.randf_range(-6, 6), _rng.randf_range(-6, 6))
+		var spot: Vector2 = tc.lerp(fp, 0.35 + i * 0.2) + Vector2(_rng.randf_range(-6, 6), _rng.randf_range(-6, 6))
 		g["root"].global_position = Vector3(spot.x, w.terrain_height(spot.x, spot.y), spot.y)
 		people.append({"p": g, "target": spot, "wait": 999.0, "speed": 0.0, "kind": "guarda", "phase": 0.0, "name": "Guarda"})
 	# pessoa especial (romance) na porta da taverna
 	var rn := Game.romance_name(ps.idx)
 	var female := ps.idx % 2 == 0
-	var sp := make_person(Color(0.65, 0.12, 0.2) if female else Color(0.15, 0.2, 0.4), Color(0.2, 0.15, 0.1),
-		SKINS[ps.idx % SKINS.size()], 4 if female else 1, false, female)
+	var sp := Assets.person("mulher" if female else "oficial", _rng)
 	add_child(sp["root"])
 	var door := Vector2(ps.tavern_pos.x, ps.tavern_pos.z) - ps.dir * 9.0
 	sp["root"].global_position = Vector3(door.x, w.terrain_height(door.x, door.y), door.y)
 	special = {"p": sp, "target": door, "wait": 999.0, "speed": 0.0, "kind": "especial", "phase": 0.0, "name": rn}
 	people.append(special)
 	# cavalos no estábulo
-	var colors := [Color(0.42, 0.26, 0.14), Color(0.15, 0.1, 0.08), Color(0.85, 0.82, 0.78)]
 	var side := Vector2(-ps.dir.y, ps.dir.x)
 	for i in 2:
-		var hp := Vector2(ps.stable_pos.x, ps.stable_pos.z) + side * (i * 4.0 - 2.0) - ps.dir * 4.0
-		var h := Horse.new(make_horse(colors[(ps.idx + i) % colors.size()]))
+		var hp := Vector2(ps.stable_pos.x, ps.stable_pos.z) + side * (i * 5.0 - 2.5) - ps.dir * 5.0
+		var h := Horse.new(Assets.horse())
 		add_child(h)
 		h.place(hp, atan2(-ps.dir.x, -ps.dir.y))
 		horses.append(h)
@@ -216,11 +210,11 @@ func _process(delta: float) -> void:
 			var to := Vector2(lp.x, lp.z) - pos
 			if to.length() < 15.0:
 				root.rotation.y = lerp_angle(root.rotation.y, atan2(-to.x, -to.y), delta * 3.0)
-			animate_walk(p, 0.0, 0.0)
+			Assets.play(p, "Idle")
 			continue
 		if e["wait"] > 0.0:
 			e["wait"] -= delta
-			animate_walk(p, 0.0, 0.0)
+			Assets.play(p, "Idle")
 			continue
 		var tgt: Vector2 = e["target"]
 		var d := tgt - pos
@@ -233,7 +227,7 @@ func _process(delta: float) -> void:
 		e["phase"] += delta * e["speed"] * 4.0
 		root.global_position = Vector3(pos.x, w.terrain_height(pos.x, pos.y), pos.y)
 		root.rotation.y = lerp_angle(root.rotation.y, atan2(-d.x, -d.y), delta * 6.0)
-		animate_walk(p, e["phase"], 1.0)
+		Assets.play(p, "Walk", e["speed"] / 1.3)
 
 
 ## Pessoa mais próxima do ponto (para conversar), ou {}.

@@ -3,11 +3,13 @@
 Jogo de piratas em **mundo aberto** para celular Android (e computador), feito na engine **Godot 4.3**.
 Mar do Caribe, 1705, durante a Guerra de Sucessão Espanhola: seja **pirata** ou oficial de uma das marinhas da época.
 
-Tudo é gerado por código, sem nenhum arquivo de arte: ondas do oceano, céu, ilhas, cidades, navios, bandeiras, efeitos sonoros e a música.
+O oceano, o céu, o relevo, os navios, as bandeiras, os sons e a música são gerados por código. As pessoas, o cavalo,
+as casas, o forte, o cais e a vegetação usam modelos 3D gratuitos (CC0) da **Kenney** e da **Quaternius**
+— veja `assets/CREDITOS.md`.
 
 ## Baixar o APK
 
-APK pronto: [`apk/MaresDeFortuna-v1.3.apk`](../apk/MaresDeFortuna-v1.3.apk) (Android 7 ou superior).
+APK pronto: [`apk/MaresDeFortuna-v1.4.apk`](../apk/MaresDeFortuna-v1.4.apk) (Android 7 ou superior).
 
 Cada push na pasta `piratas-godot/` gera um APK pelo GitHub Actions (workflow *Mares de Fortuna (Godot) - APK*):
 
@@ -98,6 +100,8 @@ scripts/port_ui.gd      mercado, estaleiro, taverna, missões e governo
 scripts/map_ui.gd       mapa do arquipélago
 scripts/menu_ui.gd      menu, escolha de carreira, opções e pausa
 scripts/audio.gd        efeitos sonoros e música sintetizados
+scripts/assets.gd       carrega os modelos 3D, animações e junta peças numa malha só
+assets/                 modelos 3D CC0 (Kenney e Quaternius) — ver assets/CREDITOS.md
 shaders/                oceano, céu, velas, bandeiras, madeira e terreno
 ```
 
