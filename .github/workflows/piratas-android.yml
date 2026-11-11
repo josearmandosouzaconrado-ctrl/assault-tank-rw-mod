@@ -1,0 +1,81 @@
+name: Mares de Fortuna (Godot) - APK
+
+on:
+  push:
+    paths:
+      - 'piratas-godot/**'
+      - '.github/workflows/piratas-android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  GODOT_VERSION: "4.3"
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Baixar Godot e os templates de exportação
+        run: |
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q "Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          TPL="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$TPL"
+          unzip -q -j "Godot_v${GODOT_VERSION}-stable_export_templates.tpz" 'templates/android_*' 'templates/version.txt' -d "$TPL"
+          ls -la "$TPL"
+
+      - name: Configurar o SDK Android e as chaves
+        run: |
+          ./godot --headless --editor --path piratas-godot --quit || true
+          ES="$HOME/.config/godot/editor_settings-${GODOT_VERSION}.tres"
+          test -f "$ES"
+          echo "export/android/android_sdk_path = \"$ANDROID_SDK_ROOT\"" >> "$ES"
+          echo "export/android/java_sdk_path = \"$JAVA_HOME\"" >> "$ES"
+          keytool -genkeypair -keystore "$HOME/release.keystore" -alias mares -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass marespass -keypass marespass -dname "CN=Mares de Fortuna, O=Mares de Fortuna, C=BR"
+          keytool -genkeypair -keystore "$HOME/debug.keystore" -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass android -keypass android -dname "CN=Android Debug, O=Android, C=US"
+
+      - name: Exportar APK
+        run: |
+          export GODOT_ANDROID_KEYSTORE_RELEASE_PATH="$HOME/release.keystore"
+          export GODOT_ANDROID_KEYSTORE_RELEASE_USER=mares
+          export GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=marespass
+          export GODOT_ANDROID_KEYSTORE_DEBUG_PATH="$HOME/debug.keystore"
+          export GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey
+          export GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android
+          sed -i "s/^version\/code=.*/version\/code=${{ github.run_number }}/" piratas-godot/export_presets.cfg
+          sed -i "s/^version\/name=.*/version\/name=\"1.0.${{ github.run_number }}\"/" piratas-godot/export_presets.cfg
+          mkdir -p dist
+          ./godot --headless --path piratas-godot --import || true
+          ./godot --headless --path piratas-godot --export-release "Android" "$GITHUB_WORKSPACE/dist/MaresDeFortuna-v1.0.${{ github.run_number }}.apk"
+          ls -la dist
+          test -s "dist/MaresDeFortuna-v1.0.${{ github.run_number }}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MaresDeFortuna-APK
+          path: dist/*.apk
+
+      - name: Publicar Release (download direto no celular)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: piratas-v1.0.${{ github.run_number }}
+          name: Mares de Fortuna v1.0.${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          files: dist/*.apk
+          body: |
+            APK do jogo de piratas **Mares de Fortuna** (Godot 4).
+            Baixe o arquivo `.apk` abaixo no celular Android e instale (permita "instalar apps desconhecidos").
+            Cada versão é assinada com uma chave nova: se o Android recusar a atualização, desinstale a versão anterior antes.

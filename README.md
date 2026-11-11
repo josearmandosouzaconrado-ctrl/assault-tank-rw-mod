@@ -1,5 +1,9 @@
 # Guerra Fria 3D: Mundo Aberto (1983)
 
+> **Novo:** este repositório também traz **Mares de Fortuna**, um jogo de piratas em mundo aberto feito em **Godot 4**.
+> Você pode ser pirata ou servir a uma das marinhas da época. Veja [`piratas-godot/README.md`](piratas-godot/README.md).
+> O APK sai na aba Releases com o nome `MaresDeFortuna-v1.0.X.apk`.
+
 Jogo de tiro **3D em primeira pessoa** em mundo aberto para celular Android, ambientado na Europa Central durante a Guerra Fria.
 Você anda a pé como soldado, com fuzil e lança-foguetes, e pode entrar em tanques e blindados (também em primeira pessoa).
 Cenário fictício ("e se a guerra esquentasse?") inspirado na geografia e nos exércitos reais da época.

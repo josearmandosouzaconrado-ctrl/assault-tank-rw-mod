@@ -2,6 +2,9 @@ name: Gerar APK
 
 on:
   push:
+    paths-ignore:
+      - 'piratas-godot/**'
+      - '.github/workflows/piratas-android.yml'
   workflow_dispatch:
 
 permissions:
