@@ -57,8 +57,12 @@ func _run() -> void:
 	main.ctl.steer_input = 0.0
 	main.ctl.steer_touch = false
 	main.ctl.cycle_camera()
+	Game.time_of_day = 0.45
+	w._update_environment()
 	await _wait(1.0)
 	await _shot("04_timao")
+	Game.time_of_day = 0.66
+	w._update_environment()
 	main.ctl.cycle_camera()
 	# inimigo ao lado para testar combate
 	var p := w.player

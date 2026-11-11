@@ -7,7 +7,7 @@ Tudo é gerado por código, sem nenhum arquivo de arte: ondas do oceano, céu, i
 
 ## Baixar o APK
 
-APK pronto: [`apk/MaresDeFortuna-v1.1.apk`](../apk/MaresDeFortuna-v1.1.apk) (Android 7 ou superior).
+APK pronto: [`apk/MaresDeFortuna-v1.2.apk`](../apk/MaresDeFortuna-v1.2.apk) (Android 7 ou superior).
 
 Cada push na pasta `piratas-godot/` gera um APK pelo GitHub Actions (workflow *Mares de Fortuna (Godot) - APK*):
 

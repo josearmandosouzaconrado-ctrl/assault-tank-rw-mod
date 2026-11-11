@@ -14,6 +14,10 @@ uniform vec3 shallow_color : source_color = vec3(0.03, 0.52, 0.52);
 uniform vec3 scatter_color : source_color = vec3(0.0, 0.42, 0.38);
 uniform float light_level = 1.0;
 uniform vec2 cam_xz = vec2(0.0);
+// navios próximos para a esteira: a = (x, z, rumo, velocidade), b = (comprimento, boca, 0, 0)
+uniform vec4 ship_a[8];
+uniform vec4 ship_b[8];
+uniform int ship_count = 0;
 
 varying vec3 wpos;
 varying float wave_h;
@@ -89,7 +93,40 @@ void fragment() {
 	float fnz = texture(foam_noise, wpos.xz * 0.06 + vec2(wave_time * 0.02, 0.0)).r;
 	float crest_foam = smoothstep(1.05 * sea_state + 0.3, 1.7 * sea_state + 0.3, wave_h + fnz * 0.7) * fade;
 	float shore_foam = smoothstep(0.86, 0.98, shallow + fnz * 0.08) * smoothstep(0.5, 0.75, fnz) * 0.55;
-	float foam = clamp(crest_foam + shore_foam * 0.8, 0.0, 1.0);
+	// esteira e espuma do casco
+	float wake = 0.0;
+	for (int i = 0; i < 8; i++) {
+		if (i >= ship_count) break;
+		vec4 a = ship_a[i];
+		vec4 b = ship_b[i];
+		vec2 dd = wpos.xz - a.xy;
+		float L = b.x;
+		float B = b.y;
+		float reach = L * 4.0 + 320.0;
+		if (dot(dd, dd) > reach * reach) continue;
+		vec2 f = vec2(-sin(a.z), -cos(a.z));
+		vec2 r = vec2(-f.y, f.x);
+		float lz = dot(dd, f);
+		float lx = dot(dd, r);
+		float spd = clamp(a.w / 9.0, 0.0, 1.2);
+		float e = length(vec2(lx / (B * 0.56), lz / (L * 0.5)));
+		float ring = smoothstep(0.88, 1.0, e) * (1.0 - smoothstep(1.0, 1.25 + 0.45 * spd, e));
+		ring *= (0.3 + 0.7 * spd) * (0.55 + 0.45 * clamp(lz / (L * 0.5), 0.0, 1.0));
+		wake = max(wake, ring);
+		float behind = -lz - L * 0.42;
+		if (behind > 0.0 && spd > 0.03) {
+			float wfade = exp(-behind / (25.0 + 140.0 * spd)) * min(spd * 1.4, 1.0);
+			float core_w = B * 0.42 + behind * 0.07;
+			float core = 1.0 - smoothstep(core_w * 0.35, core_w, abs(lx));
+			float arm_x = B * 0.5 + behind * 0.34;
+			float arm = 1.0 - smoothstep(0.0, 1.0 + behind * 0.045, abs(abs(lx) - arm_x));
+			wake = max(wake, (core * 0.6 + arm * 0.4) * wfade);
+		}
+	}
+	float wn = texture(foam_noise, wpos.xz * 0.13 + vec2(0.0, wave_time * 0.03)).r;
+	float wn2 = texture(foam_noise, wpos.xz * 0.45 - vec2(wave_time * 0.02, 0.0)).r;
+	float wake_foam = wake * smoothstep(0.35, 0.8, wn * 0.6 + wn2 * 0.5 + wake * 0.2);
+	float foam = clamp(crest_foam + shore_foam * 0.8 + wake_foam, 0.0, 1.0);
 	ALBEDO = mix(col, vec3(0.85, 0.9, 0.9), foam);
 	EMISSION = sss * (1.0 - foam) + col * vec3(0.5, 0.8, 1.2) * 0.6 * (1.0 - light_level);
 	ROUGHNESS = mix(0.04, 0.7, foam);

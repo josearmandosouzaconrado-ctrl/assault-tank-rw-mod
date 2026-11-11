@@ -63,6 +63,15 @@ void fragment() {
 			if (fc.r > 0.5) c = emblem_color;
 		}
 	}
+	// faixas de rizes, cabos de borda (relinga) e manchas de uso
+	float reef = 0.0;
+	for (int i = 1; i <= 3; i++) {
+		reef = max(reef, 1.0 - smoothstep(0.0, 0.006, abs(v - 0.09 * float(i))));
+	}
+	c *= 1.0 - reef * 0.22;
+	float edge = 1.0 - smoothstep(0.0, 0.02, min(min(u, 1.0 - u), min(v, 1.0 - v)));
+	c = mix(c, c * 0.65, edge);
+	c *= 0.92 + 0.08 * vnoise(UV * vec2(3.0, 5.0) + 7.0);
 	c *= 1.0 - v_fold * 0.25;
 	// borda inferior mais suja
 	c *= mix(1.0, 0.82, smoothstep(0.75, 1.0, v));

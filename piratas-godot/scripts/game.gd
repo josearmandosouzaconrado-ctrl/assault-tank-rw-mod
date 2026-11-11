@@ -12,22 +12,22 @@ enum { ENG, ESP, FRA, HOL, POR, PIR }
 
 const NATIONS := [
 	{"name": "Grã-Bretanha", "navy": "Marinha Real Britânica", "adj": "britânico",
-		"color": Color(0.80, 0.12, 0.15), "hull": Color(0.10, 0.09, 0.08), "stripe": Color(0.85, 0.66, 0.25),
+		"color": Color(0.80, 0.12, 0.15), "hull": Color(0.2, 0.16, 0.12), "stripe": Color(0.85, 0.66, 0.25),
 		"sail": Color(0.93, 0.91, 0.84), "flag": 0, "alliance": 0},
 	{"name": "Espanha", "navy": "Armada Espanhola", "adj": "espanhol",
-		"color": Color(0.85, 0.65, 0.10), "hull": Color(0.33, 0.20, 0.11), "stripe": Color(0.62, 0.10, 0.08),
+		"color": Color(0.85, 0.65, 0.10), "hull": Color(0.5, 0.33, 0.19), "stripe": Color(0.62, 0.10, 0.08),
 		"sail": Color(0.92, 0.88, 0.78), "flag": 1, "alliance": 1},
 	{"name": "França", "navy": "Marine Royale", "adj": "francês",
-		"color": Color(0.20, 0.35, 0.85), "hull": Color(0.28, 0.18, 0.10), "stripe": Color(0.14, 0.22, 0.52),
+		"color": Color(0.20, 0.35, 0.85), "hull": Color(0.46, 0.31, 0.18), "stripe": Color(0.14, 0.22, 0.52),
 		"sail": Color(0.94, 0.92, 0.86), "flag": 2, "alliance": 1},
 	{"name": "Holanda", "navy": "Marinha Holandesa", "adj": "holandês",
-		"color": Color(0.95, 0.50, 0.10), "hull": Color(0.30, 0.19, 0.10), "stripe": Color(0.25, 0.42, 0.25),
+		"color": Color(0.95, 0.50, 0.10), "hull": Color(0.48, 0.32, 0.18), "stripe": Color(0.25, 0.42, 0.25),
 		"sail": Color(0.90, 0.86, 0.76), "flag": 3, "alliance": 0},
 	{"name": "Portugal", "navy": "Armada Portuguesa", "adj": "português",
-		"color": Color(0.10, 0.60, 0.25), "hull": Color(0.32, 0.21, 0.12), "stripe": Color(0.75, 0.12, 0.10),
+		"color": Color(0.10, 0.60, 0.25), "hull": Color(0.5, 0.34, 0.2), "stripe": Color(0.75, 0.12, 0.10),
 		"sail": Color(0.93, 0.90, 0.82), "flag": 4, "alliance": 0},
 	{"name": "Piratas", "navy": "Irmandade da Costa", "adj": "pirata",
-		"color": Color(0.15, 0.15, 0.15), "hull": Color(0.24, 0.17, 0.11), "stripe": Color(0.42, 0.08, 0.06),
+		"color": Color(0.15, 0.15, 0.15), "hull": Color(0.34, 0.24, 0.15), "stripe": Color(0.42, 0.08, 0.06),
 		"sail": Color(0.3, 0.28, 0.26), "flag": 5, "alliance": 2},
 ]
 

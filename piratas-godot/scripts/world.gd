@@ -382,6 +382,32 @@ func _weather(delta: float) -> void:
 	Sfx.set_ocean_level(0.4 + storm * 0.6)
 
 
+## Envia ao shader do oceano os 8 navios mais próximos da câmera (esteiras).
+func _update_wakes() -> void:
+	var lp := listener_pos()
+	var cands: Array = []
+	for s in ships:
+		if s.dead:
+			continue
+		var d2 := s.global_position.distance_squared_to(lp)
+		if d2 < 1500.0 * 1500.0:
+			cands.append([d2, s])
+	cands.sort_custom(func(a, b): return a[0] < b[0])
+	var aa: Array = []
+	var bb: Array = []
+	for i in 8:
+		if i < cands.size():
+			var s: Ship = cands[i][1]
+			aa.append(Vector4(s.global_position.x, s.global_position.z, s.yaw, s.speed))
+			bb.append(Vector4(s.length, s.beam, 0.0, 0.0))
+		else:
+			aa.append(Vector4.ZERO)
+			bb.append(Vector4.ZERO)
+	ocean.mat.set_shader_parameter("ship_a", aa)
+	ocean.mat.set_shader_parameter("ship_b", bb)
+	ocean.mat.set_shader_parameter("ship_count", mini(cands.size(), 8))
+
+
 func _flash_lightning() -> void:
 	var e0 := env.ambient_light_energy
 	env.ambient_light_energy = 3.0
@@ -423,6 +449,7 @@ func _process(delta: float) -> void:
 		_env_timer = 1.0
 		_update_environment()
 	_weather(delta)
+	_update_wakes()
 	_stream_islands()
 	_update_loot(delta)
 	_update_markers()
