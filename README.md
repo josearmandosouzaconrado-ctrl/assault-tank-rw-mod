@@ -1,6 +1,7 @@
-# Guerra Fria: Mundo Aberto (1983)
+# Guerra Fria 3D: Mundo Aberto (1983)
 
-Jogo de tanques em mundo aberto para celular Android, ambientado na Europa Central durante a Guerra Fria.
+Jogo de tiro **3D em primeira pessoa** em mundo aberto para celular Android, ambientado na Europa Central durante a Guerra Fria.
+Você anda a pé como soldado, com fuzil e lança-foguetes, e pode entrar em tanques e blindados (também em primeira pessoa).
 Cenário fictício ("e se a guerra esquentasse?") inspirado na geografia e nos exércitos reais da época.
 
 ## Baixar o APK
@@ -15,39 +16,44 @@ Também dá para jogar no navegador abrindo `web/index.html`.
 
 ## Nações jogáveis
 
-| Nação | Lado | Tanque | Blindado | Helicóptero | Base inicial |
-|---|---|---|---|---|---|
-| União Soviética (URSS) | Pacto de Varsóvia | T-72 | BMP-1 | Mi-24 Hind | Wünsdorf (GSFG) |
-| Polônia (PRL) | Pacto de Varsóvia | T-55A | OT-64 SKOT | Mi-2 | Szczecin |
-| Alemanha Oriental (RDA) | Pacto de Varsóvia | T-72M | BTR-70 | Mi-8 | Berlim Oriental |
-| Alemanha Ocidental (RFA) | OTAN | Leopard 1 | Marder | Bo 105 | Hannover |
-| OTAN (forças dos EUA) | OTAN | M1 Abrams | M113 | AH-64 Apache | Base de Fulda |
+| Nação | Lado | Fuzil | Lança-foguetes | Tanque | Blindado | Helicóptero | Base inicial |
+|---|---|---|---|---|---|---|---|
+| União Soviética (URSS) | Pacto de Varsóvia | AK-74 | RPG-7 | T-72 | BMP-1 | Mi-24 Hind | Wünsdorf (GSFG) |
+| Polônia (PRL) | Pacto de Varsóvia | Kbk AKM | RPG-7 | T-55A | OT-64 SKOT | Mi-2 | Szczecin |
+| Alemanha Oriental (RDA) | Pacto de Varsóvia | MPi-KM | RPG-7 | T-72M | BTR-70 | Mi-8 | Berlim Oriental |
+| Alemanha Ocidental (RFA) | OTAN | G3 | Panzerfaust 44 | Leopard 1 | Marder | Bo 105 | Hannover |
+| OTAN (forças dos EUA) | OTAN | M16A2 | M72 LAW | M1 Abrams | M113 | AH-64 Apache | Base de Fulda |
 
 ## O mundo
 
-- Mapa contínuo de cerca de 9.600 × 6.000 metros: da Renânia até Moscou e Kiev.
+- Mundo 3D contínuo de 9,6 × 6 km, da Renânia até Moscou e Kiev, com relevo, florestas e rios. Ele é carregado em blocos conforme você anda.
 - 27 cidades capturáveis: Bonn, Hamburgo, Frankfurt, Munique, Berlim Ocidental e Oriental, Leipzig, Dresden, Rostock,
   Varsóvia, Gdańsk, Cracóvia, Poznań, Wrocław, Szczecin, Kaliningrado, Minsk, Kiev, Moscou e outras.
-- **Cortina de Ferro** (cerca + faixa da morte) entre as duas Alemanhas, com postos de controle nas estradas.
-- **Muro de Berlim** em volta de Berlim Ocidental, com Checkpoint Charlie na estrada entre as duas Berlins.
+- Cidades com prédios em 3D e a bandeira do dono atual na praça central.
+- **Cortina de Ferro** entre as duas Alemanhas: cerca de arame, faixa da morte e torres de vigia, com postos de controle nas estradas.
+- **Muro de Berlim** em 3D em volta de Berlim Ocidental, com passagens nas estradas (Checkpoint Charlie).
 - Rios Reno, Elba, Oder, Vístula e Dnieper, Mar Báltico, florestas e estradas. O terreno muda a velocidade:
   estrada é mais rápida, floresta e rio são mais lentos, e a cerca atrasa muito.
 
 ## Como jogar
 
-- **Joystick** (lado esquerdo da tela): move o tanque.
-- **FOGO**: canhão. A torre mira sozinha no inimigo mais próximo.
-- **MÍSSIL**: míssil antitanque guiado, com recarga.
-- **Minimapa**: toque para abrir o mapa da Europa.
-- **QUARTEL**: aparece quando você está numa cidade aliada sem inimigos por perto. Serve para reparar e comprar
-  melhorias (blindagem, canhão, motor, mísseis).
-- O botão **Voltar** do Android pausa o jogo. A campanha é salva automaticamente.
+Celular:
+- **Joystick** (lado esquerdo): andar. No tanque: acelerar, dar ré e virar.
+- **Arrastar no lado direito**: olhar/mirar. Arrastar o botão **FOGO** também mira enquanto atira.
+- **FOGO**: fuzil (pente de 30, recarrega sozinho). No tanque: canhão.
+- **RPG**: lança-foguetes antitanque. No veículo: **METRALHADORA**.
+- **MIRA**: zoom para tiros de longe.
+- **ENTRAR / SAIR**: entra no tanque ou blindado aliado mais próximo. No começo há um tanque estacionado ao seu lado.
+- **QUARTEL**: numa cidade aliada sem inimigos por perto. Serve para curar ou reparar, comprar foguetes, requisitar um tanque, fazer melhorias e usar o **transporte rápido** entre cidades aliadas.
+- **Minimapa**: toque para abrir o mapa da Europa. O botão **Voltar** do Android pausa o jogo.
 
-Para capturar uma cidade, elimine a guarnição e fique dentro do círculo. As missões são geradas o tempo todo:
+Computador: clique para capturar o mouse, `WASD` move, botão esquerdo atira, botão direito mira, `F` = RPG, `E` = entrar/sair, `R` = recarregar, `B` = quartel, `M` = mapa, `Esc` = pausa.
+
+Para capturar uma cidade, elimine a guarnição e fique dentro dela até a barra encher. As missões são geradas o tempo todo:
 capturar cidades, destruir comboios, defender cidades aliadas e recuperar documentos de espiões.
-Vence o lado que dominar as 27 cidades.
+Vence o lado que dominar as 27 cidades. A campanha é salva automaticamente.
 
-Teclado (navegador): `WASD`/setas, `Espaço` = fogo, `E` = míssil, `M` = mapa, `B` = quartel, `Esc` = pausa.
+No menu, **Gráficos: rápido/bonito** troca a resolução e a distância de visão (use "rápido" em celulares mais simples).
 
 ## Música
 
@@ -67,7 +73,9 @@ D2 F2 A3 c | d2 c2 A4 | B2 A2 G2 E2 | D8 |]
 ## Estrutura
 
 ```
-web/index.html        o jogo inteiro (HTML5 Canvas + JavaScript, sem dependências)
+web/index.html        menus e interface
+web/game.js           o jogo 3D (mundo, unidades, IA, armas, missões)
+web/lib/three.min.js  motor 3D Three.js r149 (licença MIT, embutido para funcionar offline)
 web/icon.png          ícone
 android/              app Android (WebView em tela cheia, horizontal) que empacota web/ como assets
 .github/workflows/    compila o APK e publica no Releases
