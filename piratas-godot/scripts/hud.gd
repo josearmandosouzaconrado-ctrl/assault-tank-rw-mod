@@ -247,7 +247,7 @@ class StatusPanel extends Control:
 		draw_style_box(sb, Rect2(Vector2.ZERO, size))
 		var f := ThemeDB.fallback_font
 		draw_string(f, Vector2(12, 24), "%s" % Game.career_title(), HORIZONTAL_ALIGNMENT_LEFT, size.x - 20, 15, GOLD)
-		draw_string(f, Vector2(12, 46), "Ouro: %d   Tripulação: %d/%d" % [Game.gold, s.crew, s.max_crew], HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color.WHITE)
+		draw_string(f, Vector2(12, 46), "Ouro: %d   Tripulação: %d/%d   Tropas: %d   Moral: %d%%" % [Game.gold, s.crew, s.max_crew, Game.soldiers, int(Game.morale)], HORIZONTAL_ALIGNMENT_LEFT, size.x - 16, 14, Color.WHITE)
 		_bar(54, "Casco", s.hp / s.max_hp, Color(0.85, 0.25, 0.2).lerp(Color(0.3, 0.8, 0.3), s.hp / s.max_hp))
 		_bar(72, "Velas", s.sail_hp / 100.0, Color(0.9, 0.88, 0.75))
 		var spd := s.speed * 1.94 * 0.6
@@ -320,28 +320,24 @@ class MiniMap extends Control:
 		draw_circle(c, r, Color(0.05, 0.18, 0.28, 0.82))
 		var pp := w.player.pos2()
 		var k := r / range_m
-		for isl in w.islands:
-			var d := isl.pos - pp
-			if d.length() - isl.r > range_m * 1.3:
-				continue
-			var q := c + d * k
-			var col := Color(0.82, 0.74, 0.5)
-			var rad := maxf(isl.r * k * 0.85, 2.0)
-			var dc := q.distance_to(c)
-			if dc - rad > r - 3.0:
-				continue
-			if dc > r - 3.0:
-				continue
-			rad = minf(rad, r - 3.0 - dc)
-			if rad < 1.5:
-				continue
-			draw_circle(q, rad, col)
-			if isl.port_idx >= 0:
-				var dp := c + (isl.dock_point - pp) * k
-				if dp.distance_to(c) < r:
-					var nat: int = Game.port_owner[isl.port_idx]
-					draw_circle(dp, 5, Game.NATIONS[nat]["color"])
-					draw_arc(dp, 5, 0, TAU, 12, Color.WHITE, 1.5)
+		if material == null:
+			var m := ShaderMaterial.new()
+			m.shader = load("res://shaders/circle_mask.gdshader")
+			material = m
+		(material as ShaderMaterial).set_shader_parameter("center", c)
+		(material as ShaderMaterial).set_shader_parameter("radius", r - 1.0)
+		if w.map_texture:
+			var half := Game.WORLD_HALF
+			var ts := w.map_texture.get_size()
+			var px := ts.x / (half * 2.0)
+			var src := Rect2((pp - Vector2(range_m, range_m) + Vector2(half, half)) * px, Vector2(range_m, range_m) * 2.0 * px)
+			draw_texture_rect_region(w.map_texture, Rect2(c - Vector2(r, r), Vector2(r, r) * 2.0), src)
+		for ps in w.port_islands:
+			var dp := c + (ps.dock_point - pp) * k
+			if dp.distance_to(c) < r - 4:
+				var nat: int = Game.port_owner[ps.idx]
+				draw_circle(dp, 5, Game.NATIONS[nat]["color"])
+				draw_arc(dp, 5, 0, TAU, 12, Color.WHITE, 1.5)
 		for s in w.ships:
 			if s.is_player or s.dead:
 				continue
@@ -398,7 +394,7 @@ func _ready() -> void:
 
 	status = StatusPanel.new()
 	status.position = Vector2(12, 10)
-	status.size = Vector2(330, 116)
+	status.size = Vector2(420, 116)
 	root.add_child(status)
 
 	compass = CompassCtl.new()
@@ -528,7 +524,7 @@ func _round(t: String, sub: String, preset: int, off: Vector2, sz: Vector2, cb: 
 # ======================================================================== ações
 func _fire(side: float) -> void:
 	var p := World.I.player
-	if p and not p.dead and ctl.mode != PlayerController.Mode.FOOT:
+	if p and not p.dead and not ctl.on_land():
 		p.fire(side)
 
 
@@ -595,7 +591,7 @@ func _process(delta: float) -> void:
 	var w := World.I
 	if w == null or w.player == null:
 		return
-	var foot := ctl.mode == PlayerController.Mode.FOOT
+	var foot := ctl.on_land()
 	wheel.visible = not foot
 	joy.visible = foot
 	sail.visible = not foot

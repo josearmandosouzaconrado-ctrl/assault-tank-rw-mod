@@ -7,7 +7,7 @@ Tudo é gerado por código, sem nenhum arquivo de arte: ondas do oceano, céu, i
 
 ## Baixar o APK
 
-APK pronto: [`apk/MaresDeFortuna-v1.2.apk`](../apk/MaresDeFortuna-v1.2.apk) (Android 7 ou superior).
+APK pronto: [`apk/MaresDeFortuna-v1.3.apk`](../apk/MaresDeFortuna-v1.3.apk) (Android 7 ou superior).
 
 Cada push na pasta `piratas-godot/` gera um APK pelo GitHub Actions (workflow *Mares de Fortuna (Godot) - APK*):
 
@@ -34,7 +34,12 @@ Como pirata, sua infâmia cresce (Marujo Rebelde → Rei dos Piratas) e caçador
 
 ## O que dá para fazer
 
-- **Navegar** num arquipélago de 16 × 16 km com 15 portos e mais de 50 ilhas. O vento muda, e a velocidade depende do ângulo do navio em relação a ele.
+- **Navegar** por um Caribe de 16 × 16 km com 19 portos: Cuba, Hispaniola, Jamaica, Porto Rico, Bahamas, Pequenas Antilhas, Flórida e a costa dos EUA, Yucatán e México, e a costa da América do Sul. O vento muda, e a velocidade depende do ângulo do navio em relação a ele.
+- **Andar pelas cidades** (botão *Passear* no porto): moradores pelas ruas, guardas com a farda da nação, taverna, igreja e forte.
+- **Cavalgar**: pegue um cavalo no estábulo e siga pelas estradas que ligam as cidades da mesma ilha ou do continente.
+- **Exército**: contrate soldados na taverna. Eles lutam nas abordagens e invasões e seguem você em terra.
+- **Bebidas e moral**: pague rodadas de rum para a tripulação (moral alta recarrega os canhões mais rápido e vence abordagens) ou beba você mesmo, e o mundo balança.
+- **Romance**: em cada cidade há uma pessoa especial. Converse, dê presentes, convide para jantar e, com afeto máximo, peça em casamento.
 - **Combater** com bordadas. Há três munições: bala redonda (casco), bala corrente (velas) e metralha (tripulação).
 - **Abordar** navios avariados: saquear, afundar ou **tomar o navio** para você.
 - **Silenciar fortes e invadir cidades**. O porto passa a ser da sua nação, ou da Irmandade se você for pirata.
@@ -56,7 +61,8 @@ Celular (horizontal):
 - Arraste em qualquer outro lugar da tela para girar a câmera.
 - **CÂMERA** alterna entre terceira pessoa e o timão em primeira pessoa. **LUNETA** dá zoom. **MUNIÇÃO** troca o tipo de bala. **BANDEIRA** iça uma bandeira falsa.
 - O botão verde no centro aparece quando há uma ação: Atracar, Abordar, Invadir, Desembarcar, Cavar ou Voltar ao navio.
-- A pé: joystick à esquerda e arrastar para olhar.
+- A pé: joystick à esquerda e arrastar para olhar. O botão verde muda conforme o lugar: Conversar, Falar com..., Entrar na taverna, Montar no cavalo, Cavar ou Voltar ao navio.
+- A cavalo: joystick para frente acelera, para os lados vira; a câmera fica atrás do cavalo.
 
 Computador: `A/D` leme, `W/S` velas, `Q/E` canhões, `R` munição, `C` câmera, `Z` luneta, `F` ação, `M` mapa, `Esc` pausa. Arraste com o mouse para olhar e use a roda para o zoom.
 
@@ -79,7 +85,12 @@ scripts/game.gd         estado global: nações, navios, mercadorias, portos, ca
 scripts/world.gd        mundo: ilhas, céu, dia/noite, clima, tráfego de navios, fortes, regras
 scripts/ship.gd         física de vela, flutuação, canhões, dano, naufrágio e IA dos capitães
 scripts/ship_builder.gd modelo 3D procedural dos navios
-scripts/island.gd       relevo, vegetação e cidades portuárias
+scripts/island.gd       massas de terra (espinha de pontos) e relevo
+scripts/terrain_tile.gd blocos de terreno de 800 m com dois níveis de detalhe e vegetação
+scripts/port_site.gd    cidades portuárias, cais, forte, estradas
+scripts/town_life.gd    moradores, guardas, pessoa especial e modelos de pessoa e cavalo
+scripts/horse.gd        cavalo de montaria
+scripts/wake.gd         esteira de espuma que segue o caminho do navio
 scripts/ocean.gd        malha do oceano e ondas (as mesmas do shader, para a flutuação)
 scripts/player.gd       câmeras (3ª pessoa, timão, luneta) e o modo a pé
 scripts/hud.gd          interface de toque (multitoque), bússola, minimapa

@@ -76,21 +76,25 @@ const GOODS := [
 # ---------------------------------------------------------------- Portos
 # pos = (x, z) no mundo; -Z = norte. produz = barato; precisa = caro
 const PORTS_DEF := [
-	{"name": "Charles Town", "nation": ENG, "pos": Vector2(-6100, -7000), "r": 620, "prod": ["madeira", "tabaco"], "need": ["tecidos", "rum"]},
-	{"name": "Nassau", "nation": PIR, "pos": Vector2(-2400, -6300), "r": 520, "prod": ["rum", "polvora"], "need": ["especiarias", "tecidos"]},
-	{"name": "Havana", "nation": ESP, "pos": Vector2(-5400, -4200), "r": 820, "prod": ["tabaco", "acucar"], "need": ["tecidos", "polvora"]},
-	{"name": "Tortuga", "nation": PIR, "pos": Vector2(300, -4600), "r": 480, "prod": ["rum", "madeira"], "need": ["polvora", "especiarias"]},
-	{"name": "Port Royal", "nation": ENG, "pos": Vector2(-2600, -1500), "r": 760, "prod": ["rum", "acucar"], "need": ["especiarias", "madeira"]},
-	{"name": "Petit-Goâve", "nation": FRA, "pos": Vector2(700, -2300), "r": 560, "prod": ["cafe", "acucar"], "need": ["polvora", "tecidos"]},
-	{"name": "Santo Domingo", "nation": ESP, "pos": Vector2(3000, -2700), "r": 700, "prod": ["acucar", "cafe"], "need": ["tecidos", "rum"]},
-	{"name": "San Juan", "nation": ESP, "pos": Vector2(5600, -3300), "r": 620, "prod": ["acucar", "madeira"], "need": ["especiarias", "polvora"]},
-	{"name": "Sint Eustatius", "nation": HOL, "pos": Vector2(7100, -1600), "r": 460, "prod": ["tecidos", "polvora"], "need": ["acucar", "tabaco"]},
-	{"name": "Fort-Royal", "nation": FRA, "pos": Vector2(7300, 600), "r": 620, "prod": ["cafe", "rum"], "need": ["madeira", "tecidos"]},
-	{"name": "Bridgetown", "nation": ENG, "pos": Vector2(6200, 2400), "r": 560, "prod": ["acucar", "rum"], "need": ["madeira", "cafe"]},
-	{"name": "Willemstad", "nation": HOL, "pos": Vector2(2200, 2600), "r": 640, "prod": ["tecidos", "especiarias"], "need": ["tabaco", "madeira"]},
-	{"name": "Cartagena", "nation": ESP, "pos": Vector2(-1900, 4700), "r": 820, "prod": ["especiarias", "tabaco"], "need": ["rum", "tecidos"]},
-	{"name": "Olinda", "nation": POR, "pos": Vector2(6900, 5600), "r": 600, "prod": ["acucar", "madeira"], "need": ["tecidos", "polvora"]},
-	{"name": "Salvador", "nation": POR, "pos": Vector2(4400, 7000), "r": 760, "prod": ["acucar", "tabaco"], "need": ["especiarias", "rum"]},
+	{"name": "Charles Town", "nation": ENG, "pos": Vector2(-2000, -8150), "dir": Vector2(0, 1), "r": 600, "prod": ["madeira", "tabaco"], "need": ["tecidos", "rum"]},
+	{"name": "St. Augustine", "nation": ESP, "pos": Vector2(-4250, -6900), "dir": Vector2(1, 0), "r": 500, "prod": ["madeira", "tabaco"], "need": ["polvora", "tecidos"]},
+	{"name": "Nassau", "nation": PIR, "pos": Vector2(-2300, -5850), "dir": Vector2(0, -1), "r": 400, "prod": ["rum", "polvora"], "need": ["especiarias", "tecidos"]},
+	{"name": "Havana", "nation": ESP, "pos": Vector2(-5900, -4500), "dir": Vector2(0, -1), "r": 800, "prod": ["tabaco", "acucar"], "need": ["tecidos", "polvora"]},
+	{"name": "Santiago de Cuba", "nation": ESP, "pos": Vector2(-800, -2750), "dir": Vector2(0, 1), "r": 600, "prod": ["acucar", "cafe"], "need": ["tecidos", "rum"]},
+	{"name": "Veracruz", "nation": ESP, "pos": Vector2(-8150, 300), "dir": Vector2(1, 0), "r": 800, "prod": ["especiarias", "cafe"], "need": ["tecidos", "polvora"]},
+	{"name": "Campeche", "nation": ESP, "pos": Vector2(-8000, -3250), "dir": Vector2(0, -1), "r": 600, "prod": ["madeira", "especiarias"], "need": ["rum", "tecidos"]},
+	{"name": "Port Royal", "nation": ENG, "pos": Vector2(-1950, -950), "dir": Vector2(0.3, 1), "r": 700, "prod": ["rum", "acucar"], "need": ["especiarias", "madeira"]},
+	{"name": "Tortuga", "nation": PIR, "pos": Vector2(1900, -3450), "dir": Vector2(0, -1), "r": 400, "prod": ["rum", "madeira"], "need": ["polvora", "especiarias"]},
+	{"name": "Petit-Goâve", "nation": FRA, "pos": Vector2(1500, -2150), "dir": Vector2(0, 1), "r": 550, "prod": ["cafe", "acucar"], "need": ["polvora", "tecidos"]},
+	{"name": "Santo Domingo", "nation": ESP, "pos": Vector2(3300, -2050), "dir": Vector2(0, 1), "r": 700, "prod": ["acucar", "cafe"], "need": ["tecidos", "rum"]},
+	{"name": "San Juan", "nation": ESP, "pos": Vector2(5800, -2600), "dir": Vector2(0, -1), "r": 600, "prod": ["acucar", "madeira"], "need": ["especiarias", "polvora"]},
+	{"name": "Sint Eustatius", "nation": HOL, "pos": Vector2(7200, -1600), "dir": Vector2(-1, 0.3), "r": 450, "prod": ["tecidos", "polvora"], "need": ["acucar", "tabaco"]},
+	{"name": "Fort-Royal", "nation": FRA, "pos": Vector2(7300, 700), "dir": Vector2(-1, 0), "r": 600, "prod": ["cafe", "rum"], "need": ["madeira", "tecidos"]},
+	{"name": "Bridgetown", "nation": ENG, "pos": Vector2(7550, 2450), "dir": Vector2(-1, 0), "r": 550, "prod": ["acucar", "rum"], "need": ["madeira", "cafe"]},
+	{"name": "Willemstad", "nation": HOL, "pos": Vector2(2300, 3950), "dir": Vector2(0, 1), "r": 600, "prod": ["tecidos", "especiarias"], "need": ["tabaco", "madeira"]},
+	{"name": "Cartagena", "nation": ESP, "pos": Vector2(-2400, 6000), "dir": Vector2(0, -1), "r": 800, "prod": ["especiarias", "tabaco"], "need": ["rum", "tecidos"]},
+	{"name": "Salvador", "nation": POR, "pos": Vector2(4800, 5000), "dir": Vector2(0, -1), "r": 750, "prod": ["acucar", "tabaco"], "need": ["especiarias", "rum"]},
+	{"name": "Olinda", "nation": POR, "pos": Vector2(7600, 4750), "dir": Vector2(0, -1), "r": 600, "prod": ["acucar", "madeira"], "need": ["tecidos", "polvora"]},
 ]
 
 # ---------------------------------------------------------------- Estado
@@ -113,12 +117,24 @@ var port_owner: Array = []
 var port_fort_hp: Array = []
 var mission := {}
 var treasure := {}           # {"pos": Vector2, "island": int}
-var player_pos := Vector2(-2350, -1950)
+var player_pos := Vector2(-1900, -600)
 var player_yaw := 0.0
 var stats := {"sunk": 0, "captured": 0, "ports": 0, "treasures": 0}
 var has_save := false
 var quality := 1             # 0 baixa, 1 média, 2 alta
 var false_flag := -1         # bandeira falsa hasteada (-1 = a verdadeira)
+var spawn_port := -1         # começar no cais deste porto (novo jogo / naufrágio)
+var morale := 70.0           # moral da tripulação 0..100
+var soldiers := 0            # tropas (mercenários/fuzileiros) a bordo
+var romance := {}            # índice do porto (texto) -> afeto 0..100
+var romance_day := {}        # último dia de conversa por porto
+var spouse := -1             # porto onde mora quem casou com você
+var drunk := 0.0             # segundos de bebedeira (efeito visual)
+
+const ROMANCE_NAMES := [
+	["Anne", "Thomas"], ["Isabel", "Diego"], ["Margot", "Étienne"], ["Saskia", "Joost"],
+	["Mariana", "Afonso"], ["Rosa", "Calico"],
+]
 
 var _price_noise := {}
 
@@ -158,11 +174,16 @@ func new_game(chosen_career: int, cname: String) -> void:
 	stats = {"sunk": 0, "captured": 0, "ports": 0, "treasures": 0}
 	false_flag = -1
 	ammo = 0
+	morale = 70.0
+	soldiers = 0
+	romance = {}
+	romance_day = {}
+	spouse = -1
 	var start_port := 4
 	if career == PIR:
 		ship_type = 0
 		gold = 1200
-		start_port = 1
+		start_port = 2
 		for n in 5:
 			rep[n] = -25
 		rep[PIR] = 30
@@ -179,16 +200,15 @@ func new_game(chosen_career: int, cname: String) -> void:
 	hull_hp = max_hull()
 	sail_hp = 100.0
 	crew = int(SHIPS[ship_type]["crew"] * 0.8)
-	var sp: Vector2 = PORTS_DEF[start_port]["pos"]
-	var d := dock_offset(start_port)
-	player_pos = sp + d * (PORTS_DEF[start_port]["r"] * 1.25 + 120.0)
-	player_yaw = atan2(-d.x, -d.y) + PI * 0.5
+	# a posição exata sai do cais calculado pelo mundo (World.spawn_player)
+	spawn_port = start_port
+	player_pos = PORTS_DEF[start_port]["pos"]
 	has_save = true
 	save_game()
 
 
 func home_port(nation: int) -> int:
-	var pref := {ENG: 4, ESP: 2, FRA: 5, HOL: 8, POR: 13, PIR: 1}
+	var pref := {ENG: 7, ESP: 3, FRA: 9, HOL: 12, POR: 18, PIR: 2}
 	var i: int = pref.get(nation, 4)
 	if port_owner.size() > i and port_owner[i] == nation:
 		return i
@@ -199,11 +219,8 @@ func home_port(nation: int) -> int:
 
 
 func dock_offset(port_idx: int) -> Vector2:
-	# Direção (do centro da ilha) em que fica o cais: de frente para o mar aberto.
-	var p: Vector2 = PORTS_DEF[port_idx]["pos"]
-	var ang := float(hash(PORTS_DEF[port_idx]["name"]) % 628) / 100.0
-	var away := p.normalized() if p.length() > 1.0 else Vector2(0, 1)
-	return Vector2(cos(ang), sin(ang)).lerp(away, 0.55).normalized()
+	# Direção da cidade para o mar aberto (onde fica o cais).
+	return (PORTS_DEF[port_idx]["dir"] as Vector2).normalized()
 
 
 func is_navy() -> bool:
@@ -377,6 +394,28 @@ func price(port_idx: int, id: String, buying: bool) -> int:
 	return max(1, int(round(v)))
 
 
+func max_soldiers() -> int:
+	return 20 + rank_index() * 15 + ship_type * 10
+
+
+## Força em combate corpo a corpo: tripulação + tropas, ajustada pela moral.
+func fighting_power(crew_n: int) -> float:
+	return (crew_n + soldiers * 2.2) * (0.75 + morale * 0.005)
+
+
+func romance_name(port_idx: int) -> String:
+	var orig: int = PORTS_DEF[port_idx]["nation"]
+	return ROMANCE_NAMES[orig][port_idx % 2]
+
+
+func affection(port_idx: int) -> int:
+	return int(romance.get(str(port_idx), 0))
+
+
+func add_affection(port_idx: int, v: int) -> void:
+	romance[str(port_idx)] = clampi(affection(port_idx) + v, 0, 100)
+
+
 func notify(text: String, color := Color(1, 1, 1)) -> void:
 	message.emit(text, color)
 
@@ -392,18 +431,25 @@ func advance_time(delta: float) -> void:
 
 
 func _new_day() -> void:
-	var wages := int(crew * 1.2)
+	var wages := int(crew * 1.2) + soldiers * 2
 	var txt := "Dia %d. Soldo da tripulação: -%d moedas." % [day, wages]
 	if is_navy():
 		var salary := 150 + rank_index() * 220
 		gold += salary
 		txt += " Salário da Coroa: +%d." % salary
 	gold -= wages
+	morale = clampf(morale - 4.0, 0.0, 100.0)
 	if gold < 0:
 		gold = 0
 		var lost := int(crew * 0.1)
 		crew -= lost
+		soldiers = int(soldiers * 0.8)
+		morale = maxf(0.0, morale - 15.0)
 		txt += " Sem dinheiro: %d marujos desertaram!" % lost
+	if morale < 20.0:
+		var gone := int(crew * 0.08)
+		crew -= gone
+		txt += " Moral baixíssima: %d homens abandonaram o navio! Pague uma rodada na taverna." % gone
 	notify(txt, Color(0.9, 0.85, 0.6))
 	if career == PIR and bounty > 0:
 		bounty = int(bounty * 0.97)
@@ -418,6 +464,7 @@ func to_dict() -> Dictionary:
 		"rep": rep, "merit": merit, "bounty": bounty, "day": day, "tod": time_of_day,
 		"owners": port_owner, "forts": port_fort_hp, "mission": _vec_to_arr(mission), "treasure": _vec_to_arr(treasure),
 		"px": player_pos.x, "pz": player_pos.y, "yaw": player_yaw, "stats": stats,
+		"morale": morale, "soldiers": soldiers, "romance": romance, "romance_day": romance_day, "spouse": spouse,
 	}
 
 
@@ -496,6 +543,11 @@ func load_game() -> bool:
 	for k in stats:
 		stats[k] = int(st.get(k, 0))
 	false_flag = -1
+	morale = float(d.get("morale", 70.0))
+	soldiers = int(d.get("soldiers", 0))
+	romance = d.get("romance", {})
+	romance_day = d.get("romance_day", {})
+	spouse = int(d.get("spouse", -1))
 	return true
 
 

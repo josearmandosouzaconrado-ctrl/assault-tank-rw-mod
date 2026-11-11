@@ -3,6 +3,7 @@ extends CanvasLayer
 ## Tela do porto: mercado, estaleiro, taverna, quadro de missões e governo/almirantado.
 
 signal closed
+signal walk_town(port_idx: int)
 
 var port := 0
 var content: VBoxContainer
@@ -18,12 +19,12 @@ func _ready() -> void:
 	visible = false
 
 
-func open(p: int) -> void:
+func open(p: int, first_tab := "mercado") -> void:
 	port = p
 	visible = true
 	_rng.randomize()
 	_build()
-	_show_tab("mercado")
+	_show_tab(first_tab)
 	Sfx.play("bell", -6.0)
 
 
@@ -67,6 +68,12 @@ func _build() -> void:
 		var id: String = t[0]
 		b.pressed.connect(func(): _show_tab(id))
 		tabs.add_child(b)
+	var walk_b := UiStyle.button("Passear", 50, 18)
+	walk_b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	walk_b.pressed.connect(func():
+		Game.save_game()
+		walk_town.emit(port))
+	tabs.add_child(walk_b)
 	var sail_b := UiStyle.button("⚓ Zarpar", 50, 18)
 	sail_b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sail_b.pressed.connect(_close)
@@ -274,12 +281,44 @@ func _tavern() -> void:
 	content.add_child(UiStyle.label("A taverna está cheia de marujos procurando trabalho.", 18, UiStyle.GOLD))
 	_row([_lbl("Contratar 10 marujos (%d cada)" % cost), _btn("%d moedas" % (cost * mini(10, need)), func(): _hire(mini(10, need), cost), need > 0 and Game.gold >= cost * mini(10, need), 200)])
 	_row([_lbl("Completar a tripulação (%d vagas)" % need), _btn("%d moedas" % (cost * need), func(): _hire(need, cost), need > 0 and Game.gold >= cost * need, 200)])
+	# tropas
+	var max_s := Game.max_soldiers()
+	var sc := 40 if Game.is_navy() and Game.port_owner[port] == Game.career else 70
+	var can_s := mini(10, max_s - Game.soldiers)
+	_row([_lbl("Contratar %d soldados (%d cada) — tropas: %d/%d" % [maxi(can_s, 0), sc, Game.soldiers, max_s]), _btn("%d moedas" % (sc * maxi(can_s, 0)), func(): _hire_soldiers(can_s, sc), can_s > 0 and Game.gold >= sc * can_s, 200)])
+	# bebidas
+	content.add_child(UiStyle.label("Bebidas — moral da tripulação: %d%%" % int(Game.morale), 19, UiStyle.GOLD))
+	var round_cost := maxi(20, Game.crew * 2)
+	_row([_lbl("Pagar uma rodada de rum para a tripulação (+moral)"), _btn("%d moedas" % round_cost, func(): _drink_round(round_cost), Game.gold >= round_cost, 200)])
+	_row([_lbl("Beber um copo de rum"), _btn("5 moedas", func(): _drink(5, 2.0, 40.0, "Rum forte! O mundo balança um pouco..."), Game.gold >= 5, 200)])
+	_row([_lbl("Taça de vinho do Porto"), _btn("20 moedas", func(): _drink(20, 3.0, 25.0, "Um vinho encorpado, digno de um almirante."), Game.gold >= 20, 200)])
+	_row([_lbl("Caneca de cerveja"), _btn("3 moedas", func(): _drink(3, 1.0, 15.0, "Cerveja gelada... bem, quase gelada."), Game.gold >= 3, 200)])
 	var tp := 1200
 	if Game.treasure.has("pos"):
 		content.add_child(UiStyle.label("Você já tem um mapa: o tesouro está em %s (marcado com X no mapa)." % Game.treasure.get("island", "?"), 17))
 	else:
 		_row([_lbl("Um velho bucaneiro vende um mapa do tesouro"), _btn("%d moedas" % tp, func(): _buy_map(tp), Game.gold >= tp, 200)])
 	content.add_child(UiStyle.label("Rumor: \"%s\"" % RUMORS[(port * 7 + Game.day) % RUMORS.size()], 17, Color(0.85, 0.8, 0.65)))
+
+
+func _hire_soldiers(n: int, c: int) -> void:
+	Game.gold -= n * c
+	Game.soldiers += n
+	Game.notify("%d soldados se juntam às suas tropas. Eles lutam nas abordagens e invasões e seguem você em terra." % n, Color(0.8, 0.9, 1))
+
+
+func _drink_round(c: int) -> void:
+	Game.gold -= c
+	Game.morale = minf(100.0, Game.morale + 25.0)
+	Sfx.play("coin", -6.0)
+	Game.notify("Rodada de rum para todos! A tripulação canta e brinda ao capitão. (moral %d%%)" % int(Game.morale), Color(1, 0.85, 0.5))
+
+
+func _drink(c: int, mor: float, drunk: float, txt: String) -> void:
+	Game.gold -= c
+	Game.morale = minf(100.0, Game.morale + mor)
+	Game.drunk = minf(Game.drunk + drunk, 150.0)
+	Game.notify(txt, Color(1, 0.85, 0.5))
 
 
 func _hire(n: int, c: int) -> void:

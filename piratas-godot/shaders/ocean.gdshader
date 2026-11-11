@@ -102,7 +102,7 @@ void fragment() {
 		vec2 dd = wpos.xz - a.xy;
 		float L = b.x;
 		float B = b.y;
-		float reach = L * 4.0 + 320.0;
+		float reach = L * 1.2 + 25.0;
 		if (dot(dd, dd) > reach * reach) continue;
 		vec2 f = vec2(-sin(a.z), -cos(a.z));
 		vec2 r = vec2(-f.y, f.x);
@@ -113,15 +113,6 @@ void fragment() {
 		float ring = smoothstep(0.88, 1.0, e) * (1.0 - smoothstep(1.0, 1.25 + 0.45 * spd, e));
 		ring *= (0.3 + 0.7 * spd) * (0.55 + 0.45 * clamp(lz / (L * 0.5), 0.0, 1.0));
 		wake = max(wake, ring);
-		float behind = -lz - L * 0.42;
-		if (behind > 0.0 && spd > 0.03) {
-			float wfade = exp(-behind / (25.0 + 140.0 * spd)) * min(spd * 1.4, 1.0);
-			float core_w = B * 0.42 + behind * 0.07;
-			float core = 1.0 - smoothstep(core_w * 0.35, core_w, abs(lx));
-			float arm_x = B * 0.5 + behind * 0.34;
-			float arm = 1.0 - smoothstep(0.0, 1.0 + behind * 0.045, abs(abs(lx) - arm_x));
-			wake = max(wake, (core * 0.6 + arm * 0.4) * wfade);
-		}
 	}
 	float wn = texture(foam_noise, wpos.xz * 0.13 + vec2(0.0, wave_time * 0.03)).r;
 	float wn2 = texture(foam_noise, wpos.xz * 0.45 - vec2(wave_time * 0.02, 0.0)).r;

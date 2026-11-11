@@ -8,13 +8,47 @@ signal player_died
 static var I: World
 
 const GRID := 800.0
-const SHALLOW_RES := 384
-const ISLAND_BUILD_DIST := 6800.0
+const SHALLOW_RES := 320
+const TILE_BUILD_DIST := 4600.0
+const TOWN_BUILD_DIST := 3200.0
+
+## Geografia (x = leste, z = sul). Cada terra: [nome, pontos da espinha, raios, altura máxima, continente?]
+const LANDS := [
+	["América do Norte", [Vector2(-9400, -7800), Vector2(-6000, -8300), Vector2(-3500, -8950), Vector2(-500, -9650), Vector2(3000, -10600), Vector2(9500, -11500)], [1000.0, 1000.0, 1200.0, 1300.0, 1400.0, 1500.0], 45.0, true],
+	["Flórida", [Vector2(-5200, -7700), Vector2(-4900, -6450), Vector2(-4650, -5600), Vector2(-4500, -5200)], [720.0, 640.0, 430.0, 220.0], 12.0, true],
+	["Cuba", [Vector2(-7300, -4150), Vector2(-6000, -4450), Vector2(-4600, -4050), Vector2(-3200, -3750), Vector2(-1800, -3350), Vector2(-500, -3000), Vector2(0, -2650)], [220.0, 380.0, 420.0, 420.0, 420.0, 470.0, 330.0], 85.0, false],
+	["Yucatán", [Vector2(-9200, -2400), Vector2(-7800, -2750), Vector2(-7500, -3250)], [1300.0, 650.0, 330.0], 30.0, true],
+	["México e América Central", [Vector2(-9800, -300), Vector2(-9600, 3000), Vector2(-8000, 6000), Vector2(-5500, 6900), Vector2(-3000, 7200)], [1800.0, 1800.0, 1500.0, 1200.0, 1300.0], 110.0, true],
+	["América do Sul", [Vector2(-3000, 7200), Vector2(0, 6700), Vector2(3500, 6300), Vector2(7000, 6150), Vector2(9800, 5100)], [1300.0, 1400.0, 1450.0, 1500.0, 1600.0], 120.0, true],
+	["Jamaica", [Vector2(-3000, -1250), Vector2(-1700, -1200)], [330.0, 350.0], 70.0, false],
+	["Hispaniola", [Vector2(1200, -2300), Vector2(2000, -2550), Vector2(3400, -2450), Vector2(4300, -2250)], [300.0, 580.0, 550.0, 330.0], 95.0, false],
+	["Porto Rico", [Vector2(5200, -2450), Vector2(6300, -2400)], [280.0, 280.0], 55.0, false],
+	["Tortuga", [Vector2(1650, -3300), Vector2(2200, -3330)], [190.0, 170.0], 35.0, false],
+	["Nova Providência", [Vector2(-2500, -5600), Vector2(-2050, -5650)], [210.0, 190.0], 12.0, false],
+	["Andros", [Vector2(-3300, -5900), Vector2(-3100, -5200)], [230.0, 260.0], 8.0, false],
+	["Eleuthera", [Vector2(-1400, -6400), Vector2(-900, -5900), Vector2(-700, -5300)], [150.0, 140.0, 130.0], 10.0, false],
+	["Exuma", [Vector2(-1500, -4900), Vector2(-900, -4500)], [120.0, 110.0], 8.0, false],
+	["Inágua", [Vector2(400, -4200)], [260.0], 8.0, false],
+	["Caicos", [Vector2(1300, -4600)], [200.0], 8.0, false],
+	["Sint Eustatius", [Vector2(7350, -1550)], [240.0], 40.0, false],
+	["Antígua", [Vector2(7600, -900)], [260.0], 30.0, false],
+	["Guadalupe", [Vector2(7350, -250), Vector2(7650, -100)], [260.0, 240.0], 70.0, false],
+	["Martinica", [Vector2(7600, 450), Vector2(7750, 950)], [330.0, 300.0], 80.0, false],
+	["Santa Lúcia", [Vector2(7800, 1550)], [250.0], 60.0, false],
+	["Barbados", [Vector2(7850, 2450)], [320.0], 25.0, false],
+	["Granada", [Vector2(6900, 3100)], [200.0], 40.0, false],
+	["Curaçao", [Vector2(2000, 3650), Vector2(2650, 3800)], [300.0, 260.0], 25.0, false],
+	["Aruba", [Vector2(1000, 3500)], [190.0], 15.0, false],
+	["Cayman", [Vector2(-4300, -2200)], [150.0], 6.0, false],
+	["Pinos", [Vector2(-5800, -3150)], [280.0], 15.0, false],
+]
 
 var ships: Array[Ship] = []
 var player: Ship
 var islands: Array[Island] = []
-var port_islands: Array[Island] = []
+var port_islands: Array[PortSite] = []
+var tiles: Array[TerrainTile] = []
+var roads: Array[PackedVector2Array] = []
 var _grid := {}
 var ocean: Ocean
 var proj: Projectiles
@@ -25,6 +59,7 @@ var moon: DirectionalLight3D
 var sky_mat: ShaderMaterial
 var rain: CPUParticles3D
 var ctl: Node   # PlayerController
+var map_texture: ImageTexture
 
 var wind_angle := 0.4
 var wind_strength := 1.0
@@ -36,7 +71,6 @@ var _spawn_timer := 1.0
 var _fort_reload: Array[float] = []
 var port_aggro: Array[bool] = []
 var _lightning := 0.0
-var _build_queue: Array[Island] = []
 var loot: Array = []
 var _rng := RandomNumberGenerator.new()
 var _treasure_marker: Node3D
@@ -60,7 +94,7 @@ func _ready() -> void:
 	add_child(fx)
 	rain = fx.make_rain()
 	add_child(rain)
-	_generate_islands()
+	_generate_world()
 	Island.warm_caches()
 	for i in port_islands.size():
 		_fort_reload.append(_rng.randf_range(0.0, 4.0))
@@ -72,46 +106,87 @@ func _ready() -> void:
 
 
 # ================================================================ geração
-func _generate_islands() -> void:
+func _generate_world() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 90210
-	for i in Game.PORTS_DEF.size():
-		var p: Dictionary = Game.PORTS_DEF[i]
-		var isl := Island.new(p["pos"], p["r"], rng.randf_range(38.0, 75.0), 1000 + i)
-		isl.port_idx = i
-		isl.name = p["name"]
-		isl.plan_port()
+	for li in LANDS.size():
+		var L: Array = LANDS[li]
+		var pts := PackedVector2Array(L[1])
+		var rads := PackedFloat32Array(L[2])
+		var isl := Island.new(pts, rads, L[3], 3000 + li, L[0])
+		isl.mainland = L[4]
 		islands.append(isl)
-		port_islands.append(isl)
+	# ilhotas espalhadas pelo mar aberto
 	var tries := 0
-	while islands.size() < Game.PORTS_DEF.size() + 52 and tries < 3000:
+	var made := 0
+	while made < 26 and tries < 4000:
 		tries += 1
-		var r: float = rng.randf_range(70.0, 260.0) if rng.randf() < 0.6 else rng.randf_range(260.0, 620.0)
+		var r: float = rng.randf_range(70.0, 240.0)
 		var p := Vector2(rng.randf_range(-7600, 7600), rng.randf_range(-7600, 7600))
 		var ok := true
 		for o in islands:
-			if o.pos.distance_to(p) < (o.r + r) * 1.55 + 260.0:
-				ok = false
-				break
+			var gap := r + Island.SHELF * 2.0 + 250.0
+			if p.x > o.bmin.x - gap and p.x < o.bmax.x + gap and p.y > o.bmin.y - gap and p.y < o.bmax.y + gap:
+				if o.height(p.x, p.y) > -17.0 or o.inland(p.x, p.y).x > -(r * 1.3 + 400.0):
+					ok = false
+					break
 		if not ok:
 			continue
-		var h: float = clampf(r * rng.randf_range(0.04, 0.13), 3.5, 70.0)
-		var isl := Island.new(p, r, h, 2000 + islands.size())
-		isl.name = _island_name(rng)
+		var isl := Island.single(p, r, clampf(r * rng.randf_range(0.03, 0.1), 3.0, 22.0), 5000 + made, _island_name(rng))
 		islands.append(isl)
+		made += 1
+	_rebuild_grid()
+	# portos
+	for i in Game.PORTS_DEF.size():
+		var ps := PortSite.new(i, Game.PORTS_DEF[i])
+		port_islands.append(ps)
+	for ps in port_islands:
+		ps.plan(self)
+		ps.land = _land_index(Vector2(ps.town_center.x, ps.town_center.z))
+	for ps in port_islands:
+		ps.settle(self)
+	_make_roads()
+	# blocos de terreno onde há terra
+	var half := Game.WORLD_HALF
+	var n := int(ceil(half * 2.0 / TerrainTile.SIZE))
+	var t0 := int(floor(-half / TerrainTile.SIZE))
+	for tz in range(t0, t0 + n):
+		for tx in range(t0, t0 + n):
+			var o := Vector2(tx, tz) * TerrainTile.SIZE
+			var touches := false
+			for isl in islands:
+				if o.x < isl.bmax.x and o.x + TerrainTile.SIZE > isl.bmin.x and o.y < isl.bmax.y and o.y + TerrainTile.SIZE > isl.bmin.y:
+					touches = true
+					break
+			if touches:
+				tiles.append(TerrainTile.new(tx, tz))
+
+
+func _rebuild_grid() -> void:
+	_grid.clear()
 	for idx in islands.size():
 		var isl := islands[idx]
-		var b := isl.bound()
-		var x0 := int(floor((isl.pos.x - b) / GRID))
-		var x1 := int(floor((isl.pos.x + b) / GRID))
-		var z0 := int(floor((isl.pos.y - b) / GRID))
-		var z1 := int(floor((isl.pos.y + b) / GRID))
+		var x0 := int(floor(isl.bmin.x / GRID))
+		var x1 := int(floor(isl.bmax.x / GRID))
+		var z0 := int(floor(isl.bmin.y / GRID))
+		var z1 := int(floor(isl.bmax.y / GRID))
 		for gx in range(x0, x1 + 1):
 			for gz in range(z0, z1 + 1):
 				var key := Vector2i(gx, gz)
 				if not _grid.has(key):
 					_grid[key] = []
 				_grid[key].append(idx)
+
+
+func _land_index(p: Vector2) -> int:
+	var best := -1
+	var bh := 0.0
+	for idx in islands_near(p.x, p.y):
+		var h := islands[idx].height(p.x, p.y)
+		if h > bh:
+			bh = h
+			best = idx
+	return best
 
 
 func _island_name(rng: RandomNumberGenerator) -> String:
@@ -121,17 +196,70 @@ func _island_name(rng: RandomNumberGenerator) -> String:
 	return "%s %s" % [a[rng.randi() % a.size()], b[rng.randi() % b.size()]]
 
 
+## Estradas entre cidades da mesma terra (até ~4,5 km), contornando o mar.
+func _make_roads() -> void:
+	roads.clear()
+	for i in port_islands.size():
+		for j in range(i + 1, port_islands.size()):
+			var a := port_islands[i]
+			var b := port_islands[j]
+			if a.land < 0 or a.land != b.land:
+				continue
+			var pa := Vector2(a.town_center.x, a.town_center.z)
+			var pb := Vector2(b.town_center.x, b.town_center.z)
+			if pa.distance_to(pb) > 4800.0:
+				continue
+			var path := _road_path(pa, pb, islands[a.land])
+			if path.size() >= 2:
+				roads.append(path)
+
+
+func _road_path(pa: Vector2, pb: Vector2, isl: Island) -> PackedVector2Array:
+	var n := maxi(4, int(pa.distance_to(pb) / 60.0))
+	var pts := PackedVector2Array()
+	for k in n + 1:
+		var p := pa.lerp(pb, float(k) / n)
+		# empurra para dentro da terra se cair perto do mar
+		var guard := 0
+		while isl.inland(p.x, p.y).x < 60.0 and guard < 60:
+			var c := _closest_spine(isl, p)
+			p = p.move_toward(c, 10.0)
+			guard += 1
+		pts.append(p)
+	# suaviza
+	for it in 3:
+		for k in range(1, pts.size() - 1):
+			pts[k] = pts[k].lerp((pts[k - 1] + pts[k + 1]) * 0.5, 0.5)
+	return pts
+
+
+func _closest_spine(isl: Island, p: Vector2) -> Vector2:
+	var best := isl.spine[0]
+	var bd := INF
+	for i in isl.spine.size() - 1:
+		var a := isl.spine[i]
+		var b := isl.spine[i + 1]
+		var ab := b - a
+		var u := clampf((p - a).dot(ab) / ab.length_squared(), 0.0, 1.0)
+		var q := a + ab * u
+		if q.distance_to(p) < bd:
+			bd = q.distance_to(p)
+			best = q
+	return best
+
+
 func _make_shallow_map() -> void:
 	var img := Image.create(SHALLOW_RES, SHALLOW_RES, false, Image.FORMAT_L8)
 	img.fill(Color(0, 0, 0))
+	var map_img := Image.create(SHALLOW_RES, SHALLOW_RES, false, Image.FORMAT_RGB8)
+	map_img.fill(Color(0.08, 0.27, 0.38))
 	var half := Game.WORLD_HALF
 	var texel := half * 2.0 / SHALLOW_RES
 	for isl in islands:
-		var b := isl.bound() + texel
-		var x0 := clampi(int((isl.pos.x - b + half) / texel), 0, SHALLOW_RES - 1)
-		var x1 := clampi(int((isl.pos.x + b + half) / texel), 0, SHALLOW_RES - 1)
-		var z0 := clampi(int((isl.pos.y - b + half) / texel), 0, SHALLOW_RES - 1)
-		var z1 := clampi(int((isl.pos.y + b + half) / texel), 0, SHALLOW_RES - 1)
+		var x0 := clampi(int((isl.bmin.x + half) / texel), 0, SHALLOW_RES - 1)
+		var x1 := clampi(int((isl.bmax.x + half) / texel), 0, SHALLOW_RES - 1)
+		var z0 := clampi(int((isl.bmin.y + half) / texel), 0, SHALLOW_RES - 1)
+		var z1 := clampi(int((isl.bmax.y + half) / texel), 0, SHALLOW_RES - 1)
 		for zi in range(z0, z1 + 1):
 			for xi in range(x0, x1 + 1):
 				var wx := -half + (xi + 0.5) * texel
@@ -140,32 +268,107 @@ func _make_shallow_map() -> void:
 				var v := clampf(1.0 + h / 15.0, 0.0, 1.0)
 				if v > img.get_pixel(xi, zi).r:
 					img.set_pixel(xi, zi, Color(v, v, v))
+	for zi in SHALLOW_RES:
+		for xi in SHALLOW_RES:
+			var v := img.get_pixel(xi, zi).r
+			if v <= 0.0:
+				continue
+			var wx := -half + (xi + 0.5) * texel
+			var wz := -half + (zi + 0.5) * texel
+			var c := Color(0.08, 0.27, 0.38).lerp(Color(0.2, 0.62, 0.66), v)
+			if v >= 1.0:
+				var h := terrain_height(wx, wz)
+				c = Color(0.86, 0.78, 0.55) if h < 4.0 else Color(0.5, 0.62, 0.32).lerp(Color(0.42, 0.36, 0.26), clampf(h / 90.0, 0.0, 1.0))
+			map_img.set_pixel(xi, zi, c)
 	var tex := ImageTexture.create_from_image(img)
 	ocean.set_shallow_map(tex, half)
+	map_texture = ImageTexture.create_from_image(map_img)
 
 
 func islands_near(x: float, z: float) -> Array:
 	return _grid.get(Vector2i(int(floor(x / GRID)), int(floor(z / GRID))), [])
 
 
-func terrain_height(x: float, z: float) -> float:
+## Relevo natural, sem o aplainamento das cidades.
+func raw_height(x: float, z: float) -> float:
 	var best := -18.0
 	for idx in islands_near(x, z):
-		var h := islands[idx].height(x, z)
+		var h: float = islands[idx].height(x, z)
 		if h > best:
 			best = h
 	return best
 
 
+func terrain_height(x: float, z: float) -> float:
+	var h := raw_height(x, z)
+	if h < 0.0:
+		return h
+	for ps in port_islands:
+		var dx := x - ps.town_center.x
+		var dz := z - ps.town_center.z
+		var d2 := dx * dx + dz * dz
+		if d2 < 200.0 * 200.0:
+			var flat := 1.0 - smoothstep(120.0, 200.0, sqrt(d2))
+			h = lerpf(h, clampf(h, 2.4, 6.0), flat)
+	return h
+
+
+## Altura onde se pisa: terreno ou o cais das cidades.
+func walk_height(x: float, z: float) -> float:
+	var h := terrain_height(x, z)
+	for ps in port_islands:
+		if absf(x - ps.coast_point.x) < 100.0 and absf(z - ps.coast_point.y) < 100.0:
+			h = maxf(h, ps.pier_height(x, z))
+	return h
+
+
+## Prédios das cidades bloqueiam quem anda a pé ou a cavalo.
+func building_blocked(x: float, z: float) -> bool:
+	for ps in port_islands:
+		var dx := x - ps.town_center.x
+		var dz := z - ps.town_center.z
+		if dx * dx + dz * dz < 260.0 * 260.0 and ps.blocked(x, z):
+			return true
+	return false
+
+
+## Vegetação não nasce nas cidades nem nas estradas.
+func veg_blocked(x: float, z: float) -> bool:
+	for ps in port_islands:
+		var dx := x - ps.town_center.x
+		var dz := z - ps.town_center.z
+		if dx * dx + dz * dz < 190.0 * 190.0:
+			return true
+		var fx2 := x - ps.fort_pos.x
+		var fz2 := z - ps.fort_pos.z
+		if fx2 * fx2 + fz2 * fz2 < 40.0 * 40.0:
+			return true
+	return on_road(x, z)
+
+
+func on_road(x: float, z: float) -> bool:
+	var p := Vector2(x, z)
+	for r in roads:
+		for k in r.size() - 1:
+			var a := r[k]
+			var b := r[k + 1]
+			if absf(p.x - a.x) > 80.0 and absf(p.x - b.x) > 80.0:
+				continue
+			var ab := b - a
+			var u := clampf((p - a).dot(ab) / ab.length_squared(), 0.0, 1.0)
+			if p.distance_squared_to(a + ab * u) < 36.0:
+				return true
+	return false
+
+
 func island_at(x: float, z: float) -> Island:
 	var best: Island = null
-	var bd := INF
+	var bh := -0.5
 	for idx in islands_near(x, z):
-		var isl := islands[idx]
-		var d := isl.pos.distance_to(Vector2(x, z))
-		if d < bd and d < isl.bound():
-			bd = d
-			best = isl
+		var h := islands[idx].height(x, z)
+		if h > bh:
+			bh = h
+			best = islands[idx]
 	return best
 
 
@@ -173,58 +376,106 @@ func nearest_island(p: Vector2) -> Island:
 	var best: Island = null
 	var bd := INF
 	for isl in islands:
-		var d := isl.pos.distance_to(p) - isl.r
+		var d := -isl.inland(p.x, p.y).x if isl.contains_box(p.x, p.y) else isl.pos.distance_to(p)
 		if d < bd:
 			bd = d
 			best = isl
 	return best
 
 
-## Constrói as ilhas próximas (síncrono, usado na tela de carregamento).
+# ---------------------------------------------------------------- construção em segundo plano
+var _build_task := -1
+var _build_obj: RefCounted
+
+
+func _job_done(obj: RefCounted) -> void:
+	var nd: Node3D = obj.node
+	if nd and not nd.is_inside_tree():
+		add_child(nd)
+		if obj is TerrainTile:
+			nd.position = Vector3(obj.origin().x, 0.0, obj.origin().y)
+
+
+## Constrói o que estiver perto (síncrono, usado na tela de carregamento).
 func build_islands_near(p: Vector2, dist: float) -> void:
 	if _build_task >= 0:
 		WorkerThreadPool.wait_for_task_completion(_build_task)
 		_build_task = -1
-		if _build_isl and _build_isl.node and not _build_isl.node.is_inside_tree():
-			add_child(_build_isl.node)
-			_build_isl.node.position = Vector3(_build_isl.pos.x, 0.0, _build_isl.pos.y)
-		_build_isl = null
-	for isl in islands:
-		if isl.node == null and isl.pos.distance_to(p) < dist + isl.r:
-			add_child(isl.build())
-			isl.node.position = Vector3(isl.pos.x, 0.0, isl.pos.y)
+		_job_done(_build_obj)
+		_build_obj = null
+	for t in tiles:
+		if t.node == null and t.center().distance_to(p) < dist:
+			t.build()
+			t.building = true
+			_job_done(t)
+	for ps in port_islands:
+		if ps.node == null and ps.dock_point.distance_to(p) < dist:
+			ps.build()
+			ps.building = true
+			_job_done(ps)
+	_build_roads_near(p, dist)
 
 
-var _build_task := -1
-var _build_isl: Island
+var _roads_built: Array[bool] = []
+
+
+func _build_roads_near(p: Vector2, dist: float) -> void:
+	if _roads_built.size() != roads.size():
+		_roads_built.resize(roads.size())
+		_roads_built.fill(false)
+	for i in roads.size():
+		if _roads_built[i]:
+			continue
+		var r := roads[i]
+		if r[0].distance_to(p) < dist + 2000.0 or r[r.size() - 1].distance_to(p) < dist + 2000.0:
+			_roads_built[i] = true
+			var m := PortSite.road_mesh(self, r, 6.5)
+			if m:
+				var mi := MeshInstance3D.new()
+				mi.mesh = m
+				mi.material_override = Island._road_mat
+				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				mi.visibility_range_end = 1500.0
+				add_child(mi)
+
+
+var _stream_t := 0.0
 
 
 func _stream_islands() -> void:
-	# a malha da ilha é gerada numa thread para não travar o jogo
 	if _build_task >= 0:
 		if not WorkerThreadPool.is_task_completed(_build_task):
 			return
 		WorkerThreadPool.wait_for_task_completion(_build_task)
 		_build_task = -1
-		if _build_isl.node:
-			add_child(_build_isl.node)
-			_build_isl.node.position = Vector3(_build_isl.pos.x, 0.0, _build_isl.pos.y)
-		_build_isl = null
+		_job_done(_build_obj)
+		_build_obj = null
 		return
-	var p := listener_pos()
-	var p2 := Vector2(p.x, p.z)
-	if _build_queue.is_empty():
-		for isl in islands:
-			if isl.node == null and not isl.building and isl.pos.distance_to(p2) < ISLAND_BUILD_DIST + isl.r:
-				isl.building = true
-				_build_queue.append(isl)
-		_build_queue.sort_custom(func(a, b): return a.pos.distance_to(p2) < b.pos.distance_to(p2))
-	if not _build_queue.is_empty():
-		_build_isl = _build_queue.pop_front()
-		if _build_isl.node != null:
-			_build_isl = null
-			return
-		_build_task = WorkerThreadPool.add_task(_build_isl.build, false, "ilha")
+	_stream_t -= get_process_delta_time()
+	if _stream_t > 0.0:
+		return
+	_stream_t = 0.25
+	var lp := listener_pos()
+	var p2 := Vector2(lp.x, lp.z)
+	var best: RefCounted = null
+	var bd := INF
+	for ps in port_islands:
+		if not ps.building:
+			var d := ps.dock_point.distance_to(p2)
+			if d < TOWN_BUILD_DIST and d < bd:
+				bd = d
+				best = ps
+	for t in tiles:
+		if not t.building:
+			var d := t.center().distance_to(p2)
+			if d < TILE_BUILD_DIST and d < bd:
+				bd = d
+				best = t
+	_build_roads_near(p2, 1500.0)
+	if best:
+		best.building = true
+		_build_obj = best
+		_build_task = WorkerThreadPool.add_task(best.build, false, "terreno")
 
 
 func _exit_tree() -> void:
@@ -509,6 +760,11 @@ func spawn_player() -> void:
 	player.sail_actual = 0.0
 	add_child(player)
 	var p := Game.player_pos
+	if Game.spawn_port >= 0:
+		var ps := port_islands[Game.spawn_port]
+		p = dock_spawn(Game.spawn_port)
+		player.yaw = atan2(ps.dir.y, -ps.dir.x)
+		Game.spawn_port = -1
 	if terrain_height(p.x, p.y) > -6.0:
 		p = _find_water_near(p)
 	player.global_position = Vector3(p.x, 0.0, p.y)
@@ -726,9 +982,7 @@ func respawn_after_sinking() -> void:
 	Game.sail_hp = 100.0
 	Game.crew = 25
 	var isl := port_islands[best]
-	var dir := Game.dock_offset(best)
-	Game.player_pos = isl.dock_point + dir * 60.0
-	Game.player_yaw = atan2(-dir.x, -dir.y)
+	Game.spawn_port = best
 	proj.clear_all()
 	for s in ships.duplicate():
 		if not s.is_player:
@@ -769,13 +1023,19 @@ func boarding_candidate() -> Ship:
 
 ## Luta de abordagem. Retorna {"win": bool, "lost": int, "killed": int}
 func resolve_boarding(enemy_crew: int, bonus := 1.0) -> Dictionary:
-	var mine := float(player.crew) * (1.0 + Game.rank_index() * 0.08) * bonus * _rng.randf_range(0.8, 1.25)
+	var mine := Game.fighting_power(player.crew) * (1.0 + Game.rank_index() * 0.08) * bonus * _rng.randf_range(0.8, 1.25)
 	var theirs := float(enemy_crew) * _rng.randf_range(0.8, 1.2)
 	var win := mine > theirs
-	var lost := int(minf(player.crew - 1, theirs * _rng.randf_range(0.25, 0.5) * (0.6 if win else 1.0)))
+	var total_lost := theirs * _rng.randf_range(0.25, 0.5) * (0.6 if win else 1.0)
+	# as tropas absorvem parte das baixas
+	var share := float(Game.soldiers) * 2.2 / maxf(float(player.crew) + Game.soldiers * 2.2, 1.0)
+	var lost_soldiers := mini(Game.soldiers, int(total_lost * share / 2.2))
+	var lost := int(minf(player.crew - 1, total_lost * (1.0 - share)))
+	Game.soldiers -= lost_soldiers
 	player.crew = maxi(1, player.crew - lost)
 	Game.crew = player.crew
-	return {"win": win, "lost": lost, "killed": int(minf(enemy_crew, mine * 0.6))}
+	Game.morale = clampf(Game.morale + (10.0 if win else -12.0), 0.0, 100.0)
+	return {"win": win, "lost": lost, "lost_soldiers": lost_soldiers, "killed": int(minf(enemy_crew, mine * 0.6))}
 
 
 func board_loot(s: Ship) -> Dictionary:
@@ -1079,15 +1339,15 @@ func _complete_hunt() -> void:
 func make_treasure_map() -> Dictionary:
 	var cands: Array[Island] = []
 	for isl in islands:
-		if isl.port_idx < 0 and isl.max_h > 4.0:
+		if not isl.mainland and isl.r < 450.0 and isl.max_h > 4.0:
 			cands.append(isl)
 	var isl: Island = cands[_rng.randi() % cands.size()]
-	for k in 200:
-		var p := isl.pos + Vector2.from_angle(_rng.randf() * TAU) * _rng.randf_range(0.0, isl.r * 0.8)
-		var h := isl.height(p.x, p.y)
-		if h > 1.6 and h < 12.0:
+	for k in 300:
+		var p := isl.spine[_rng.randi() % isl.spine.size()] + Vector2.from_angle(_rng.randf() * TAU) * _rng.randf_range(0.0, isl.r * 0.7)
+		var h := terrain_height(p.x, p.y)
+		if h > 1.6 and h < 12.0 and not veg_blocked(p.x, p.y):
 			return {"pos": p, "island": isl.name}
-	return {"pos": isl.pos, "island": isl.name}
+	return {"pos": isl.spine[0], "island": isl.name}
 
 
 ## Ponto de desembarque: praia mais próxima do navio (ou INF).
@@ -1095,12 +1355,21 @@ func landing_point() -> Vector2:
 	if player == null:
 		return Vector2.INF
 	var p := player.pos2()
-	var isl := nearest_island(p)
-	if isl == null:
-		return Vector2.INF
-	var dir := (isl.pos - p).normalized()
-	for d in range(0, 200, 4):
-		var q := p + dir * d
-		if isl.height(q.x, q.y) > 0.6:
-			return q
-	return Vector2.INF
+	var best := Vector2.INF
+	var bd := INF
+	for k in 24:
+		var dir := Vector2.from_angle(TAU * k / 24.0)
+		for d in range(8, 200, 6):
+			var q := p + dir * d
+			if terrain_height(q.x, q.y) > 0.8:
+				if d < bd:
+					bd = d
+					best = q
+				break
+	return best
+
+
+## Lugar livre na água perto de um porto.
+func dock_spawn(i: int) -> Vector2:
+	var ps := port_islands[i]
+	return _find_water_near(ps.dock_point + ps.dir * 60.0)

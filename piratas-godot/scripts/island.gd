@@ -1,83 +1,107 @@
 class_name Island
 extends RefCounted
-## Dados e construção de uma ilha: relevo procedural, vegetação e (se houver) a cidade portuária.
+## Uma massa de terra (ilha pequena, ilha grande como Cuba ou trecho de continente),
+## definida por uma "espinha" de pontos com raios. O relevo é uma função contínua:
+## qualquer ponto do mundo pode perguntar a altura do terreno.
 
-var pos := Vector2.ZERO
-var r := 300.0
+var spine := PackedVector2Array()
+var radii := PackedFloat32Array()
+var pos := Vector2.ZERO      # centro aproximado (rótulos)
+var r := 300.0               # maior raio
 var max_h := 30.0
 var seed_i := 0
-var port_idx := -1
-var noise: FastNoiseLite
-var node: Node3D
-var building := false
 var name := ""
-var dock_point := Vector2.ZERO     # água em frente ao cais
-var coast_point := Vector2.ZERO
-var fort_pos := Vector3.ZERO
-var town_center := Vector3.ZERO
-var flag_mat: ShaderMaterial
-var fort_ruin: Node3D
+var mainland := false
+var bmin := Vector2.ZERO
+var bmax := Vector2.ZERO
+var noise: FastNoiseLite
+
+const SHELF := 170.0         # largura da plataforma submersa além da costa
 
 static var _veg_meshes := {}
 static var _terrain_mat: ShaderMaterial
 static var _veg_mat: StandardMaterial3D
 static var _build_mat: StandardMaterial3D
 static var _flag_shader: Shader
+static var _road_mat: StandardMaterial3D
 
 
-func _init(p: Vector2, radius: float, height: float, s: int) -> void:
-	pos = p
-	r = radius
+func _init(points: PackedVector2Array, rads: PackedFloat32Array, height: float, s: int, nm := "") -> void:
+	spine = points
+	radii = rads
 	max_h = height
 	seed_i = s
+	name = nm
 	noise = FastNoiseLite.new()
 	noise.seed = s
 	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
 	noise.frequency = 0.0035
 	noise.fractal_octaves = 4
+	var c := Vector2.ZERO
+	r = 0.0
+	bmin = Vector2(INF, INF)
+	bmax = Vector2(-INF, -INF)
+	for i in spine.size():
+		c += spine[i]
+		r = maxf(r, radii[i])
+		var e := radii[i] * 1.25 + SHELF
+		bmin = bmin.min(spine[i] - Vector2(e, e))
+		bmax = bmax.max(spine[i] + Vector2(e, e))
+	pos = c / spine.size()
+
+
+static func single(p: Vector2, radius: float, height: float, s: int, nm := "") -> Island:
+	return Island.new(PackedVector2Array([p]), PackedFloat32Array([radius]), height, s, nm)
 
 
 func bound() -> float:
-	return r * 1.55
+	return (bmax - bmin).length() * 0.5
+
+
+func contains_box(x: float, z: float) -> bool:
+	return x >= bmin.x and x <= bmax.x and z >= bmin.y and z <= bmax.y
+
+
+## Distância (em metros) para dentro da costa: positiva em terra, negativa no mar.
+func inland(x: float, z: float) -> Vector2:
+	var p := Vector2(x, z)
+	var best := INF
+	var best_r := radii[0]
+	if spine.size() == 1:
+		best = p.distance_to(spine[0]) / radii[0]
+	else:
+		for i in spine.size() - 1:
+			var a := spine[i]
+			var b := spine[i + 1]
+			var ab := b - a
+			var u := clampf((p - a).dot(ab) / ab.length_squared(), 0.0, 1.0)
+			var rr := lerpf(radii[i], radii[i + 1], u)
+			var t := p.distance_to(a + ab * u) / rr
+			if t < best:
+				best = t
+				best_r = rr
+	# costa recortada
+	var edge := noise.get_noise_2d(x * 0.55 + 1000.0, z * 0.55)
+	best /= 0.85 + 0.3 * edge
+	return Vector2((1.0 - best) * best_r, best_r)
 
 
 func height(x: float, z: float) -> float:
-	var dx := x - pos.x
-	var dz := z - pos.y
-	var d2 := dx * dx + dz * dz
-	var b := bound()
-	if d2 > b * b:
+	if not contains_box(x, z):
 		return -18.0
-	var d := sqrt(d2)
-	var a := atan2(dz, dx)
-	var edge := noise.get_noise_2d(cos(a) * 300.0 + 1000.0, sin(a) * 300.0)
-	var re := r * (0.8 + 0.35 * edge)
-	var t := d / re
-	var n1 := noise.get_noise_2d(dx, dz)
-	var core := maxf(1.0 - t, 0.0)
-	var h := max_h * pow(core, 1.25) * (0.65 + 0.6 * n1)
-	h += 2.6 * (1.0 - smoothstep(0.86, 1.0, t))
-	h -= 18.0 * smoothstep(0.96, 1.55, t)
-	if port_idx >= 0:
-		# planalto suave para a cidade
-		var tc := Vector2(town_center.x, town_center.z)
-		if tc != Vector2.ZERO:
-			var dt := Vector2(x, z).distance_to(tc)
-			var flat := 1.0 - smoothstep(110.0, 190.0, dt)
-			h = lerpf(h, maxf(minf(h, 6.0), 2.4), flat * (1.0 if h >= 0.0 else 0.0))
+	var ir := inland(x, z)
+	var s := ir.x
+	var rr := ir.y
+	if s < -SHELF:
+		return -18.0
+	if s < 0.0:
+		return maxf(1.0 + s * 0.11, -18.0)
+	var n1 := noise.get_noise_2d(x, z)
+	var h := 1.0 + 1.7 * smoothstep(0.0, 28.0, s)
+	var inner := clampf((s - 25.0) / maxf(rr * 0.8, 60.0), 0.0, 1.0)
+	h += max_h * pow(inner, 1.15) * (0.55 + 0.6 * n1)
+	h += noise.get_noise_2d(x * 4.0, z * 4.0) * 3.0 * smoothstep(30.0, 150.0, s)
 	return h
-
-
-func find_coast(dir: Vector2) -> Vector2:
-	var p := pos
-	var step := 6.0
-	var d := 0.0
-	while d < r * 1.6:
-		var q := pos + dir * d
-		if height(q.x, q.y) < -0.6:
-			return q
-		d += step
-	return pos + dir * r
 
 
 # --------------------------------------------------------------- materiais
@@ -96,6 +120,9 @@ static func _materials() -> void:
 	_build_mat.vertex_color_is_srgb = true
 	_build_mat.roughness = 0.9
 	_build_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_road_mat = StandardMaterial3D.new()
+	_road_mat.albedo_color = Color(0.55, 0.45, 0.32)
+	_road_mat.roughness = 1.0
 
 
 static func warm_caches() -> void:
@@ -105,91 +132,6 @@ static func warm_caches() -> void:
 	_rock_mesh()
 	ShipBuilder.glow_material()
 	_flag_shader = load("res://shaders/flag.gdshader")
-
-
-# --------------------------------------------------------------- construção
-func build() -> Node3D:
-	_materials()
-	var root := Node3D.new()
-	root.name = "Ilha_%d" % seed_i
-	var mi := MeshInstance3D.new()
-	mi.mesh = _terrain_mesh()
-	mi.material_override = _terrain_mat
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	root.add_child(mi)
-	_vegetation(root)
-	if port_idx >= 0:
-		_town(root)
-	node = root
-	return root
-
-
-func _terrain_mesh() -> ArrayMesh:
-	var ext := bound()
-	var n := clampi(int(ext * 2.0 / 13.0), 40, 120 if Game.quality > 0 else 80)
-	var cell := ext * 2.0 / n
-	var hs := PackedFloat32Array()
-	hs.resize((n + 1) * (n + 1))
-	for j in n + 1:
-		for i in n + 1:
-			var x := pos.x - ext + i * cell
-			var z := pos.y - ext + j * cell
-			hs[j * (n + 1) + i] = height(x, z)
-	var verts := PackedVector3Array()
-	var cols := PackedColorArray()
-	var norms := PackedVector3Array()
-	verts.resize((n + 1) * (n + 1))
-	cols.resize(verts.size())
-	norms.resize(verts.size())
-	var sand := Color(0.86, 0.77, 0.56).srgb_to_linear()
-	var grass := Color(0.36, 0.52, 0.2).srgb_to_linear()
-	var jungle := Color(0.15, 0.3, 0.09).srgb_to_linear()
-	var rock := Color(0.47, 0.44, 0.4).srgb_to_linear()
-	var under := Color(0.62, 0.58, 0.44).srgb_to_linear()
-	for j in n + 1:
-		for i in n + 1:
-			var k := j * (n + 1) + i
-			var h := hs[k]
-			var hl := hs[k - 1] if i > 0 else h
-			var hr := hs[k + 1] if i < n else h
-			var hd := hs[k - (n + 1)] if j > 0 else h
-			var hu := hs[k + (n + 1)] if j < n else h
-			var nrm := Vector3(hl - hr, 2.0 * cell, hd - hu).normalized()
-			var slope := 1.0 - nrm.y
-			var c: Color
-			if h < -0.5:
-				c = under
-			elif h < 2.6:
-				c = sand
-			else:
-				var hn := clampf((h - 2.6) / maxf(max_h * 0.7, 4.0), 0.0, 1.0)
-				c = grass.lerp(jungle, clampf(hn * 1.6 + noise.get_noise_2d(i * 37.0, j * 37.0) * 0.4, 0.0, 1.0))
-				if h < 4.0:
-					c = sand.lerp(c, (h - 2.6) / 1.4)
-			if slope > 0.32 or h > max_h * 0.85:
-				c = c.lerp(rock, clampf((slope - 0.32) * 5.0 + maxf(0.0, (h - max_h * 0.85) * 0.2), 0.0, 1.0))
-			verts[k] = Vector3(-ext + i * cell, h, -ext + j * cell)
-			cols[k] = c
-			norms[k] = nrm
-	var idx := PackedInt32Array()
-	for j in n:
-		for i in n:
-			var a := j * (n + 1) + i
-			var b := a + 1
-			var c := a + (n + 1)
-			var d := c + 1
-			if hs[a] < -6.0 and hs[b] < -6.0 and hs[c] < -6.0 and hs[d] < -6.0:
-				continue
-			idx.append_array(PackedInt32Array([a, b, c, b, d, c]))
-	var arr := []
-	arr.resize(Mesh.ARRAY_MAX)
-	arr[Mesh.ARRAY_VERTEX] = verts
-	arr[Mesh.ARRAY_NORMAL] = norms
-	arr[Mesh.ARRAY_COLOR] = cols
-	arr[Mesh.ARRAY_INDEX] = idx
-	var m := ArrayMesh.new()
-	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
-	return m
 
 
 # --------------------------------------------------------------- vegetação
@@ -275,212 +217,6 @@ static func _rock_mesh() -> ArrayMesh:
 	var m := st.commit()
 	_veg_meshes["rock"] = m
 	return m
-
-
-func _vegetation(root: Node3D) -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = seed_i * 31 + 7
-	var dens: float = [0.45, 0.8, 1.0][Game.quality]
-	var area := PI * r * r
-	var n_palm := int(clampf(area / 1400.0, 6, 420) * dens)
-	var n_tree := int(clampf(area / 1700.0, 0, 380) * dens) if max_h > 12.0 else 0
-	var n_rock := int(clampf(area / 9000.0, 2, 60) * dens)
-	var palms: Array[Transform3D] = []
-	var trees: Array[Transform3D] = []
-	var rocks: Array[Transform3D] = []
-	var ext := r * 1.05
-	var tries := 0
-	var tc := Vector2(town_center.x, town_center.z)
-	while (palms.size() < n_palm or trees.size() < n_tree) and tries < (n_palm + n_tree) * 6:
-		tries += 1
-		var lp := Vector2(rng.randf_range(-ext, ext), rng.randf_range(-ext, ext))
-		var wp := pos + lp
-		if port_idx >= 0 and wp.distance_to(tc) < 170.0:
-			continue
-		var h := height(wp.x, wp.y)
-		if h < 1.4:
-			continue
-		var h2 := height(wp.x + 3.0, wp.y)
-		if absf(h2 - h) > 2.4:
-			continue
-		var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.75, 1.35))
-		var t := Transform3D(b, Vector3(lp.x, h - 0.3, lp.y))
-		if (h < 9.0 or rng.randf() < 0.25) and palms.size() < n_palm:
-			palms.append(t)
-		elif h >= 5.0 and trees.size() < n_tree:
-			trees.append(t)
-	tries = 0
-	while rocks.size() < n_rock and tries < n_rock * 8:
-		tries += 1
-		var lp := Vector2(rng.randf_range(-ext, ext), rng.randf_range(-ext, ext))
-		var h := height(pos.x + lp.x, pos.y + lp.y)
-		if h < -1.5 or h > max_h:
-			continue
-		var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(rng.randf_range(0.7, 2.4), rng.randf_range(0.6, 1.8), rng.randf_range(0.7, 2.4)))
-		rocks.append(Transform3D(b, Vector3(lp.x, h - 0.4, lp.y)))
-	var vis: float = [900.0, 1500.0, 2200.0][Game.quality]
-	_add_mm(root, _palm_mesh(), palms, vis)
-	_add_mm(root, _tree_mesh(), trees, vis)
-	_add_mm(root, _rock_mesh(), rocks, vis * 1.3)
-
-
-func _add_mm(root: Node3D, mesh: Mesh, xfs: Array[Transform3D], vis: float) -> void:
-	if xfs.is_empty():
-		return
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.mesh = mesh
-	mm.instance_count = xfs.size()
-	for i in xfs.size():
-		mm.set_instance_transform(i, xfs[i])
-	var mmi := MultiMeshInstance3D.new()
-	mmi.multimesh = mm
-	mmi.material_override = _veg_mat
-	mmi.visibility_range_end = vis
-	mmi.visibility_range_end_margin = 80.0
-	mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
-	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if Game.quality > 0 else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	root.add_child(mmi)
-
-
-# --------------------------------------------------------------- cidade portuária
-## Calcula posições da cidade, do cais e do forte (sem construir malhas).
-func plan_port() -> void:
-	var dir := Game.dock_offset(port_idx)
-	coast_point = find_coast(dir)
-	dock_point = coast_point + dir * 95.0
-	var tc := coast_point - dir * 120.0
-	town_center = Vector3(tc.x, 0.0, tc.y)
-	town_center.y = height(tc.x, tc.y)
-	var fdir := dir.rotated(0.55)
-	var fc := find_coast(fdir) - fdir * 22.0
-	fort_pos = Vector3(fc.x, maxf(height(fc.x, fc.y), 1.5), fc.y)
-
-
-func _town(root: Node3D) -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = seed_i * 17 + 3
-	var nat: int = Game.port_owner[port_idx]
-	var orig: int = Game.PORTS_DEF[port_idx]["nation"]
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var gs := SurfaceTool.new()
-	gs.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var dir := Game.dock_offset(port_idx)
-	var ang := atan2(dir.x, dir.y)
-	var walls := [Color(0.92, 0.88, 0.78), Color(0.95, 0.85, 0.65), Color(0.85, 0.75, 0.6)]
-	var roofs := [Color(0.62, 0.25, 0.15), Color(0.55, 0.3, 0.2)]
-	match orig:
-		Game.ENG:
-			walls = [Color(0.6, 0.32, 0.24), Color(0.75, 0.7, 0.62), Color(0.55, 0.42, 0.3)]
-			roofs = [Color(0.3, 0.3, 0.32), Color(0.4, 0.3, 0.22)]
-		Game.HOL:
-			walls = [Color(0.62, 0.28, 0.2), Color(0.9, 0.82, 0.55), Color(0.4, 0.55, 0.62), Color(0.85, 0.55, 0.35)]
-			roofs = [Color(0.55, 0.22, 0.14), Color(0.3, 0.28, 0.28)]
-		Game.FRA:
-			walls = [Color(0.9, 0.84, 0.7), Color(0.78, 0.72, 0.6), Color(0.88, 0.78, 0.58)]
-			roofs = [Color(0.36, 0.38, 0.42), Color(0.6, 0.32, 0.2)]
-		Game.PIR:
-			walls = [Color(0.48, 0.38, 0.27), Color(0.4, 0.32, 0.22), Color(0.55, 0.45, 0.32)]
-			roofs = [Color(0.62, 0.55, 0.35), Color(0.38, 0.3, 0.2)]
-		Game.POR:
-			walls = [Color(0.96, 0.95, 0.9), Color(0.95, 0.85, 0.45), Color(0.55, 0.7, 0.85)]
-			roofs = [Color(0.7, 0.32, 0.18), Color(0.62, 0.28, 0.16)]
-	var tc := Vector2(town_center.x, town_center.z)
-	var placed: Array[Vector2] = []
-	var count := 34 if Game.quality > 0 else 22
-	var tries := 0
-	while placed.size() < count and tries < 400:
-		tries += 1
-		var off := Vector2(rng.randf_range(-130, 130), rng.randf_range(-130, 130))
-		var wp := tc + off
-		var h := height(wp.x, wp.y)
-		if h < 1.8 or h > 14.0:
-			continue
-		var ok := true
-		for q in placed:
-			if q.distance_to(wp) < 17.0:
-				ok = false
-				break
-		if not ok:
-			continue
-		placed.append(wp)
-		var w := rng.randf_range(7, 12)
-		var dd := rng.randf_range(7, 11)
-		var hh := rng.randf_range(4.5, 8.5) * (1.4 if orig == Game.HOL else 1.0)
-		var a := ang + (rng.randi() % 4) * PI * 0.5
-		var b := Basis(Vector3.UP, a)
-		var base := Vector3(wp.x - pos.x, h - 0.5, wp.y - pos.y)
-		_house(st, gs, base, b, w, dd, hh, walls[rng.randi() % walls.size()], roofs[rng.randi() % roofs.size()])
-	# igreja
-	var cb := Basis(Vector3.UP, ang)
-	var cpos := Vector3(tc.x - pos.x, town_center.y - 0.5, tc.y - pos.y)
-	_house(st, gs, cpos, cb, 12, 26, 10, Color(0.93, 0.9, 0.82), Color(0.55, 0.28, 0.18))
-	ShipBuilder._box(st, Transform3D(cb, cpos + cb * Vector3(0, 11, 14)), Vector3(6, 22, 6), Color(0.93, 0.9, 0.82))
-	ShipBuilder._box(st, Transform3D(cb, cpos + cb * Vector3(0, 23.5, 14)), Vector3(4, 3, 4), Color(0.55, 0.28, 0.18))
-	# cais
-	var cp := Vector3(coast_point.x - pos.x, 0.0, coast_point.y - pos.y)
-	var db := Basis(Vector3.UP, ang)
-	var plank := Color(0.45, 0.33, 0.22)
-	ShipBuilder._box(st, Transform3D(db, cp + db * Vector3(0, 1.4, 30)), Vector3(7, 0.5, 80), plank)
-	for k in 9:
-		for sx in [-3.2, 3.2]:
-			ShipBuilder._box(st, Transform3D(db, cp + db * Vector3(sx, -2.0, k * 9.5 - 6.0)), Vector3(0.6, 7.0, 0.6), plank.darkened(0.3))
-	ShipBuilder._box(st, Transform3D(db, cp + db * Vector3(0, 1.4, 66)), Vector3(22, 0.5, 8), plank)
-	# armazéns no porto
-	for k in 3:
-		var wp := cp + db * Vector3(-22 + k * 22, 0, -18)
-		var h := height(pos.x + wp.x, pos.y + wp.z)
-		_house(st, null, Vector3(wp.x, maxf(h, 1.0) - 0.5, wp.z), db, 14, 10, 6, Color(0.5, 0.38, 0.26), Color(0.42, 0.3, 0.2))
-	# forte
-	var fp := fort_pos - Vector3(pos.x, 0, pos.y)
-	var fb := Basis(Vector3.UP, ang + 0.55)
-	var stone := Color(0.6, 0.57, 0.5)
-	var fs := 30.0
-	for k in 4:
-		var kb := fb * Basis(Vector3.UP, k * PI * 0.5)
-		ShipBuilder._box(st, Transform3D(kb, fp + kb * Vector3(0, 3.0, fs * 0.5)), Vector3(fs, 9.0, 3.0), stone)
-		ShipBuilder._tube(st, fp + kb * Vector3(fs * 0.5, -1.5, fs * 0.5), fp + kb * Vector3(fs * 0.5, 9.5, fs * 0.5), 4.2, 3.8, stone.darkened(0.1), 8)
-		for g in 3:
-			var gp := fp + kb * Vector3(-8.0 + g * 8.0, 7.8, fs * 0.5)
-			ShipBuilder._tube(st, gp, gp + kb * Vector3(0, 0.3, 3.2), 0.32, 0.26, Color(0.1, 0.1, 0.1), 6)
-	ShipBuilder._box(st, Transform3D(fb, fp + Vector3(0, 1.5, 0)), Vector3(fs - 2, 5.0, fs - 2), stone.darkened(0.2))
-	var mesh := st.commit()
-	var mi := MeshInstance3D.new()
-	mi.mesh = mesh
-	mi.material_override = _build_mat
-	root.add_child(mi)
-	# mastro e bandeira do dono do porto
-	var pole := MeshInstance3D.new()
-	var pm := CylinderMesh.new()
-	pm.top_radius = 0.15
-	pm.bottom_radius = 0.22
-	pm.height = 16.0
-	pole.mesh = pm
-	pole.position = fp + Vector3(0, 12.0, 0)
-	root.add_child(pole)
-	var flag := MeshInstance3D.new()
-	flag.mesh = ShipBuilder.flag_mesh(7.5, 5.0)
-	flag_mat = ShaderMaterial.new()
-	flag_mat.shader = _flag_shader
-	flag_mat.set_shader_parameter("flag_type", Game.NATIONS[nat]["flag"])
-	flag.material_override = flag_mat
-	flag.position = fp + Vector3(0.2, 19.8, 0)
-	root.add_child(flag)
-	# luzes das janelas à noite
-	var glow := MeshInstance3D.new()
-	glow.mesh = gs.commit()
-	glow.material_override = ShipBuilder.glow_material()
-	glow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	root.add_child(glow)
-	fort_ruin = Node3D.new()
-	fort_ruin.position = fp + Vector3(0, 8, 0)
-	root.add_child(fort_ruin)
-
-
-func set_owner_flag(nat: int) -> void:
-	if flag_mat:
-		flag_mat.set_shader_parameter("flag_type", Game.NATIONS[nat]["flag"])
 
 
 static func _house(st: SurfaceTool, gs: SurfaceTool, base: Vector3, b: Basis, w: float, d: float, h: float, wall: Color, roof: Color) -> void:

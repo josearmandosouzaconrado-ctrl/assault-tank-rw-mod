@@ -12,8 +12,9 @@ var _menu_cam: Camera3D
 var _menu_t := 0.0
 var _save_timer := 90.0
 var _board_target: Ship
+var _talk_target: Dictionary = {}
 
-const MENU_POINT := Vector2(-2600, -2350)
+const MENU_POINT := Vector2(-1700, -420)
 
 
 func _ready() -> void:
@@ -107,6 +108,7 @@ func _enter_game() -> void:
 	port_ui = PortUI.new()
 	add_child(port_ui)
 	port_ui.closed.connect(_on_port_closed)
+	port_ui.walk_town.connect(_walk_town)
 	map_ui = MapUI.new()
 	add_child(map_ui)
 	map_ui.closed.connect(func():
@@ -126,11 +128,25 @@ func _update_action() -> void:
 	var p := world.player
 	if p == null:
 		return
+	if ctl.mode == PlayerController.Mode.HORSE:
+		hud.set_action("dismount", "Desmontar")
+		return
 	if ctl.mode == PlayerController.Mode.FOOT:
+		_talk_target = {}
 		if ctl.digging > 0.0:
 			hud.set_action("", "")
 		elif ctl.near_treasure():
 			hud.set_action("dig", "Cavar o tesouro!")
+		elif ctl.near_horse():
+			hud.set_action("mount", "Montar no cavalo")
+		elif ctl.town and not ctl.town.nearest_person(ctl.foot_pos, 3.2).is_empty():
+			_talk_target = ctl.town.nearest_person(ctl.foot_pos, 3.2)
+			if _talk_target["kind"] == "especial":
+				hud.set_action("romance", "Falar com %s" % _talk_target["name"])
+			else:
+				hud.set_action("talk", "Conversar")
+		elif ctl.town and ctl.foot_pos.distance_to(ctl.town.site.tavern_pos) < 11.0:
+			hud.set_action("tavern", "Entrar na taverna")
 		else:
 			hud.set_action("back", "Voltar ao navio")
 		return
@@ -174,6 +190,25 @@ func _on_action(id: String) -> void:
 			_invade(world.nearest_port(p.pos2()))
 		"board":
 			_board(world.boarding_candidate())
+		"mount":
+			ctl.mount(ctl.near_horse())
+		"dismount":
+			ctl.dismount()
+		"talk":
+			_talk()
+		"romance":
+			if ctl.town:
+				_romance(ctl.town.site.idx)
+		"tavern":
+			if ctl.town:
+				var ti := ctl.town.site.idx
+				if Game.can_dock(ti):
+					hud.release_all()
+					hud.modal = true
+					get_tree().paused = true
+					port_ui.open(ti, "taverna")
+				else:
+					Game.notify("O taverneiro olha torto: \"Aqui não servimos inimigos!\"", Color(1, 0.5, 0.4))
 
 
 func _dock(i: int) -> void:
@@ -194,6 +229,88 @@ func _dock(i: int) -> void:
 	hud.modal = true
 	get_tree().paused = true
 	port_ui.open(i)
+
+
+func _talk() -> void:
+	if _talk_target.is_empty() or ctl.town == null:
+		return
+	var nm: String = _talk_target["name"]
+	var line := ctl.town.random_line()
+	if _talk_target["kind"] == "guarda":
+		var owner: int = Game.port_owner[ctl.town.site.idx]
+		if Game.nation_hostile_to_player(owner):
+			line = "Alto lá! Eu conheço essa cara... é melhor voltar para o seu navio antes que eu chame o capitão da guarda!"
+		else:
+			line = ["Circulando, cidadão. Ordens do governador.", "Tudo calmo hoje, capitão.", "O forte está bem guarnecido. Ninguém toma esta cidade."][randi() % 3]
+	hud.show_dialog(nm, line, [["Até mais", Callable()]])
+
+
+## Romance com a pessoa especial de cada cidade: conversar, presentear, jantar e casar.
+func _romance(i: int) -> void:
+	var nm := Game.romance_name(i)
+	var a := Game.affection(i)
+	var opts := []
+	var mood := "%s olha para você com curiosidade." % nm
+	if Game.spouse == i:
+		mood = "%s corre para abraçar você: \"Você voltou!\"" % nm
+		opts.append(["Passar a noite em casa (descansar até de manhã)", func():
+			Game.time_of_day = 0.27
+			Game.day += 1
+			Game.morale = minf(100.0, Game.morale + 25.0)
+			Game.notify("Uma noite tranquila em casa. A tripulação também descansou (+moral).", Color(1, 0.8, 0.85))
+			world._update_environment(true)])
+		opts.append(["Até logo", Callable()])
+		hud.show_dialog(nm, mood, opts)
+		return
+	if a >= 80:
+		mood = "%s não tira os olhos de você. O afeto é evidente." % nm
+	elif a >= 50:
+		mood = "%s fica feliz em ver você e sorri." % nm
+	elif a >= 20:
+		mood = "%s cumprimenta você com simpatia." % nm
+	var talked: bool = int(Game.romance_day.get(str(i), -1)) == Game.day
+	opts.append(["Conversar" + (" (já conversaram hoje)" if talked else ""), func():
+		if talked:
+			Game.notify("%s: \"Volte amanhã, capitão.\"" % nm, Color(1, 0.8, 0.85))
+			return
+		Game.romance_day[str(i)] = Game.day
+		Game.add_affection(i, 6)
+		Game.notify("Vocês conversam sobre o mar e as estrelas. (afeto %d/100)" % Game.affection(i), Color(1, 0.8, 0.85))])
+	opts.append(["Dar um presente (300 moedas)", func():
+		if Game.gold < 300:
+			Game.notify("Você não tem moedas suficientes.", Color(1, 0.6, 0.4))
+			return
+		Game.gold -= 300
+		Game.add_affection(i, 12)
+		Sfx.play("coin")
+		Game.notify("%s adorou o presente! (afeto %d/100)" % [nm, Game.affection(i)], Color(1, 0.8, 0.85))])
+	opts.append(["Convidar para jantar na taverna (150 moedas)", func():
+		if Game.gold < 150:
+			Game.notify("Você não tem moedas suficientes.", Color(1, 0.6, 0.4))
+			return
+		Game.gold -= 150
+		Game.add_affection(i, 9)
+		Game.morale = minf(100.0, Game.morale + 4.0)
+		Game.notify("Um jantar à luz de velas, com música de rabeca. (afeto %d/100)" % Game.affection(i), Color(1, 0.8, 0.85))])
+	if a >= 100 and Game.spouse < 0:
+		opts.append(["Pedir em casamento", func():
+			Game.spouse = i
+			Game.morale = minf(100.0, Game.morale + 30.0)
+			Sfx.play("bell")
+			Game.notify("%s disse SIM! A cidade inteira comemora o casamento." % nm, Color(1, 0.85, 0.3))
+			Game.save_game()])
+	opts.append(["Até logo", Callable()])
+	hud.show_dialog(nm, mood + "  (afeto %d/100)" % a, opts)
+
+
+func _walk_town(i: int) -> void:
+	port_ui.visible = false
+	get_tree().paused = false
+	hud.modal = false
+	var ps := world.port_islands[i]
+	ctl.go_ashore(Vector2(ps.pier_end.x, ps.pier_end.z))
+	ctl.foot_yaw = atan2(ps.dir.x, ps.dir.y)
+	Game.notify("Bem-vindo a %s! Converse com os moradores, visite a taverna ou pegue um cavalo no estábulo." % ps.name, Color(0.9, 0.95, 1))
 
 
 func _on_port_closed() -> void:

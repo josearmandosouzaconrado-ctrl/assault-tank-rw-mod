@@ -61,27 +61,6 @@ func _to_screen(p: Vector2) -> Vector2:
 	return r.position + (p + Vector2(h, h)) / (2.0 * h) * r.size
 
 
-func _outline(isl: Island) -> PackedVector2Array:
-	if _outlines.has(isl):
-		return _outlines[isl]
-	var pts := PackedVector2Array()
-	for k in 40:
-		var a := TAU * k / 40.0
-		var d := Vector2(cos(a), sin(a))
-		var lo := 0.0
-		var hi := isl.bound()
-		for it in 12:
-			var mid := (lo + hi) * 0.5
-			var q := isl.pos + d * mid
-			if isl.height(q.x, q.y) > 0.0:
-				lo = mid
-			else:
-				hi = mid
-		pts.append(isl.pos + d * lo)
-	_outlines[isl] = pts
-	return pts
-
-
 func _draw_map() -> void:
 	var w := World.I
 	var r := _map_rect()
@@ -93,20 +72,14 @@ func _draw_map() -> void:
 		var y := r.position.y + r.size.y * i / 8.0
 		canvas.draw_line(Vector2(x, r.position.y), Vector2(x, r.end.y), Color(1, 1, 1, 0.06), 1.0)
 		canvas.draw_line(Vector2(r.position.x, y), Vector2(r.end.x, y), Color(1, 1, 1, 0.06), 1.0)
-	for isl in w.islands:
-		var o := _outline(isl)
+	if w.map_texture:
+		canvas.draw_texture_rect(w.map_texture, r, false)
+	# estradas
+	for road in w.roads:
 		var sp := PackedVector2Array()
-		for p in o:
-			sp.append(_to_screen(p))
-		var empty := true
-		for p in o:
-			if p.distance_to(isl.pos) > 1.0:
-				empty = false
-				break
-		if empty:
-			continue
-		canvas.draw_colored_polygon(sp, Color(0.86, 0.78, 0.55))
-		canvas.draw_polyline(sp + PackedVector2Array([sp[0]]), Color(0.45, 0.38, 0.25), 1.0)
+		for q in road:
+			sp.append(_to_screen(q))
+		canvas.draw_polyline(sp, Color(0.45, 0.32, 0.18, 0.9), 1.5)
 	for i in w.port_islands.size():
 		var isl := w.port_islands[i]
 		var p := _to_screen(isl.dock_point)

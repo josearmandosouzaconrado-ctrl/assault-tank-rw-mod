@@ -51,8 +51,10 @@ func _run() -> void:
 	var y0: float = main.world.player.yaw
 	main.ctl.steer_touch = true
 	main.ctl.steer_input = 1.0
-	await _wait(3.0)
+	main.ctl.orbit_pitch = -0.55
+	await _wait(9.0)
 	await _shot("03b_curva")
+	main.ctl.orbit_pitch = -0.2
 	print("Curva: yaw ", y0, " -> ", main.world.player.yaw, " vel ", main.world.player.speed)
 	main.ctl.steer_input = 0.0
 	main.ctl.steer_touch = false
@@ -123,13 +125,46 @@ func _run() -> void:
 	main.map_ui.visible = false
 	get_tree().paused = false
 	main.hud.modal = false
-	# desembarque
+	# passear pela cidade
 	var isl := w.port_islands[pi]
-	var lp := isl.find_coast(Game.dock_offset(pi).rotated(1.2)) - Game.dock_offset(pi).rotated(1.2) * 20.0
-	main.ctl.go_ashore(lp)
-	Game.treasure = {"pos": lp + Vector2(3, 0), "island": isl.name}
+	main._walk_town(pi)
+	Game.soldiers = 6
+	main.ctl._spawn_followers()
+	await _wait(2.0)
+	main.ctl.foot_yaw = atan2(isl.dir.x, isl.dir.y)
 	await _wait(1.0)
-	await _shot("14_a_pe")
+	await _shot("14_cidade_a_pe")
+	# conversar com a pessoa especial
+	var sp: Dictionary = main.ctl.town.special
+	var spos: Vector3 = sp["p"]["root"].global_position
+	main.ctl.foot_pos = spos + Vector3(isl.dir.x, 0, isl.dir.y) * 2.5
+	var to: Vector3 = spos - main.ctl.foot_pos
+	main.ctl.foot_yaw = atan2(-to.x, -to.z)
+	main.ctl.foot_pitch = -0.15
+	await _wait(1.0)
+	await _shot("14b_pessoa")
+	main._romance(isl.idx)
+	await _wait(0.6)
+	await _shot("14c_romance")
+	main.hud.close_dialog()
+	# taverna
+	main.port_ui.open(isl.idx, "taverna")
+	get_tree().paused = true
+	await _wait(0.5)
+	await _shot("14d_taverna")
+	main.port_ui.visible = false
+	get_tree().paused = false
+	# cavalo
+	var h: Horse = main.ctl.town.horses[0]
+	main.ctl.foot_pos = h.global_position + Vector3(2, 0, 0)
+	main.ctl.mount(h)
+	main.ctl.move_vec = Vector2(0, 1)
+	await _wait(4.0)
+	await _shot("14e_cavalo")
+	print("Cavalo andou até ", h.global_position, " vel ", h.speed)
+	main.ctl.move_vec = Vector2.ZERO
+	main.ctl.dismount()
+	Game.treasure = {"pos": Vector2(main.ctl.foot_pos.x, main.ctl.foot_pos.z) + Vector2(2, 0), "island": isl.name}
 	main.ctl.start_dig()
 	await _wait(3.2)
 	print("Ouro após cavar: ", Game.gold)

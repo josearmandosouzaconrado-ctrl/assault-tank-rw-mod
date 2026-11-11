@@ -57,6 +57,7 @@ var _last_furl := -9.0
 var _last_dmg := -9.0
 var _fires: Array = []
 var _lantern: OmniLight3D
+var wake: Wake
 var _rng := RandomNumberGenerator.new()
 
 # IA
@@ -87,6 +88,8 @@ func setup(type_i: int, nat: int, r: int, player := false, flag := -1) -> void:
 	reload_time = 7.5 - minf(def["guns"], 26) * 0.08
 	model = ShipBuilder.build(def, nat, Game.NATIONS[flag_nation]["flag"])
 	add_child(model["root"])
+	wake = Wake.new(self)
+	add_child(wake)
 	if player:
 		_lantern = OmniLight3D.new()
 		_lantern.light_color = Color(1.0, 0.7, 0.35)
@@ -213,6 +216,7 @@ func _physics_process(delta: float) -> void:
 	np.x = clampf(np.x, -lim, lim)
 	np.y = clampf(np.y, -lim, lim)
 	velocity = Vector3(f.x, 0.0, f.y) * speed
+	wake.record(np, f, speed, beam, length, delta)
 	_float(np, delta, yaw_rate, a)
 	_visuals(delta, eff, a)
 
@@ -295,8 +299,15 @@ func can_fire(side: float) -> bool:
 	return reload[side] <= 0.0 and not dead and crew > 3
 
 
-func reload_frac(side: float) -> float:
+func effective_reload() -> float:
 	var rt := reload_time * (1.0 + clampf(1.0 - float(crew) / max_crew, 0.0, 1.0) * 1.5)
+	if is_player:
+		rt *= 1.25 - Game.morale * 0.005
+	return rt
+
+
+func reload_frac(side: float) -> float:
+	var rt := effective_reload()
 	return clampf(1.0 - reload[side] / rt, 0.0, 1.0)
 
 
@@ -329,8 +340,7 @@ func find_target(side: float, only_hostile: bool) -> Ship:
 func fire(side: float) -> void:
 	if not can_fire(side):
 		return
-	var rt := reload_time * (1.0 + clampf(1.0 - float(crew) / max_crew, 0.0, 1.0) * 1.5)
-	reload[side] = rt
+	reload[side] = effective_reload()
 	var target := find_target(side, not is_player)
 	var guns: Array = model["guns"][side]
 	var dmg := 26.0 * dmg_mult
