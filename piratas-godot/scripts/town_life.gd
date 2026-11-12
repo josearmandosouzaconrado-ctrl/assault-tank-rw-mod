@@ -373,6 +373,8 @@ func _process(delta: float) -> void:
 			_carrier(e, p, root, pos, delta)
 			continue
 		if e["kind"] != "morador":
+			if ctl and ctl.cutscene:
+				continue
 			var to := Vector2(lp.x, lp.z) - pos
 			if to.length() < 15.0:
 				root.rotation.y = lerp_angle(root.rotation.y, atan2(-to.x, -to.y), delta * 3.0)

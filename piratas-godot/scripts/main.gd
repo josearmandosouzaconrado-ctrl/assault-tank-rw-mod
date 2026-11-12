@@ -272,12 +272,24 @@ func _romance(i: int) -> void:
 	var a := Game.affection(i)
 	var opts := []
 	var mood := "%s olha para você com curiosidade." % nm
+	var key := str(i)
 	if Game.spouse == i:
 		mood = "%s corre para abraçar você: \"Você voltou!\"" % nm
-		opts.append(["Beijar", func(): _love_scene(i, false)])
-		opts.append(["Passar a noite em casa (descansar até de manhã)", func(): _love_scene(i, true)])
+		# ciúme: rumores de outros romances chegam ao porto
+		if int(Game.romance_day.get(key + "c", -1)) != Game.day:
+			Game.romance_day[key + "c"] = Game.day
+			for k in Game.romance:
+				if k != key and int(Game.romance[k]) >= 60 and randf() < 0.4:
+					Game.add_affection(i, -15)
+					mood = "%s cruza os braços: \"Ouvi falar de %s, em %s... Quem é?\" (ciúme: afeto -15)" % [nm, Game.romance_name(int(k)), world.port_islands[int(k)].name]
+					break
+		opts.append(["Beijar", func(): _couple_scene(i, "kiss")])
+		opts.append(["Dançar na praça", func(): _couple_scene(i, "dance")])
+		opts.append(["Jantar na taverna (150 moedas)", func(): _date_dinner(i)])
+		opts.append(["Passar a noite em casa (descansar até de manhã)", func(): _couple_scene(i, "night")])
+		_quest_options(i, opts)
 		opts.append(["Até logo", Callable()])
-		hud.show_dialog(nm, mood, opts)
+		hud.show_dialog(nm, mood + "  (afeto %d/100)" % Game.affection(i) + _quest_text(i), opts)
 		return
 	if a >= 80:
 		mood = "%s não tira os olhos de você. O afeto é evidente." % nm
@@ -285,12 +297,12 @@ func _romance(i: int) -> void:
 		mood = "%s fica feliz em ver você e sorri." % nm
 	elif a >= 20:
 		mood = "%s cumprimenta você com simpatia." % nm
-	var talked: bool = int(Game.romance_day.get(str(i), -1)) == Game.day
+	var talked: bool = int(Game.romance_day.get(key, -1)) == Game.day
 	opts.append(["Conversar" + (" (já conversaram hoje)" if talked else ""), func():
 		if talked:
 			Game.notify("%s: \"Volte amanhã, capitão.\"" % nm, Color(1, 0.8, 0.85))
 			return
-		Game.romance_day[str(i)] = Game.day
+		Game.romance_day[key] = Game.day
 		Game.add_affection(i, 6)
 		Game.notify("Vocês conversam sobre o mar e as estrelas. (afeto %d/100)" % Game.affection(i), Color(1, 0.8, 0.85))])
 	opts.append(["Dar um presente (300 moedas)", func():
@@ -301,22 +313,15 @@ func _romance(i: int) -> void:
 		Game.add_affection(i, 12)
 		Sfx.play("coin")
 		Game.notify("%s adorou o presente! (afeto %d/100)" % [nm, Game.affection(i)], Color(1, 0.8, 0.85))])
-	opts.append(["Convidar para jantar na taverna (150 moedas)", func():
-		if Game.gold < 150:
-			Game.notify("Você não tem moedas suficientes.", Color(1, 0.6, 0.4))
-			return
-		Game.gold -= 150
-		Game.add_affection(i, 9)
-		Game.morale = minf(100.0, Game.morale + 4.0)
-		Game.notify("Um jantar à luz de velas, com música de rabeca. (afeto %d/100)" % Game.affection(i), Color(1, 0.8, 0.85))])
+	opts.append(["Jantar na taverna (150 moedas)", func(): _date_dinner(i)])
+	if a >= 30:
+		opts.append(["Dançar na praça", func(): _couple_scene(i, "dance")])
 	if a >= 50:
-		opts.append(["Beijar", func():
-			if int(Game.romance_day.get(str(i) + "b", -1)) != Game.day:
-				Game.romance_day[str(i) + "b"] = Game.day
-				Game.add_affection(i, 5)
-			_love_scene(i, false)])
+		opts.append(["Beijar", func(): _couple_scene(i, "kiss")])
 	if a >= 80:
-		opts.append(["Passar a noite juntos", func(): _love_scene(i, true)])
+		opts.append(["Passar a noite juntos", func(): _couple_scene(i, "night")])
+	if a >= 20:
+		_quest_options(i, opts)
 	if a >= 100 and Game.spouse < 0:
 		opts.append(["Pedir em casamento", func():
 			Game.spouse = i
@@ -325,51 +330,120 @@ func _romance(i: int) -> void:
 			Game.notify("%s disse SIM! A cidade inteira comemora o casamento." % nm, Color(1, 0.85, 0.3))
 			Game.save_game()])
 	opts.append(["Até logo", Callable()])
-	hud.show_dialog(nm, mood + "  (afeto %d/100)" % a, opts)
+	hud.show_dialog(nm, mood + "  (afeto %d/100)" % a + _quest_text(i), opts)
 
 
-## Cena romântica: os dois se aproximam e se beijam, com a câmera de perto e corações subindo.
-## Na noite juntos, a tela escurece (como nos jogos do gênero) e vocês acordam na manhã seguinte.
-func _love_scene(i: int, night: bool) -> void:
+## Pedido especial da pessoa amada: trazer mercadorias de outro porto (sobe muito o afeto).
+func _quest_text(i: int) -> String:
+	var q: Dictionary = Game.romance_quest.get(str(i), {})
+	if q.is_empty():
+		return ""
+	return "\nPedido: %d %s (no porão: %d)" % [q["qty"], Game.good_name(q["good"]), int(Game.cargo.get(q["good"], 0))]
+
+
+func _quest_options(i: int, opts: Array) -> void:
+	var nm := Game.romance_name(i)
+	var q: Dictionary = Game.romance_quest.get(str(i), {})
+	if q.is_empty():
+		opts.append(["Perguntar o que deseja", func():
+			var g: Dictionary = Game.GOODS[randi() % Game.GOODS.size()]
+			var n := randi_range(4, 9)
+			Game.romance_quest[str(i)] = {"good": g["id"], "qty": n}
+			Game.notify("%s sonha com %d %s. Traga no porão do navio e entregue em mãos." % [nm, n, g["name"]], Color(1, 0.8, 0.85))])
+	elif int(Game.cargo.get(q["good"], 0)) >= int(q["qty"]):
+		opts.append(["Entregar %d %s" % [q["qty"], Game.good_name(q["good"])], func():
+			Game.cargo[q["good"]] = int(Game.cargo[q["good"]]) - int(q["qty"])
+			if int(Game.cargo[q["good"]]) <= 0:
+				Game.cargo.erase(q["good"])
+			Game.romance_quest.erase(str(i))
+			Game.add_affection(i, 25)
+			Sfx.play("bell", -6.0)
+			Game.notify("%s se emociona com o presente! (afeto %d/100)" % [nm, Game.affection(i)], Color(1, 0.85, 0.5))])
+
+
+func _date_dinner(i: int) -> void:
+	if ctl.cutscene:
+		return
+	if Game.gold < 150:
+		hud.close_dialog()
+		Game.notify("Você não tem moedas suficientes.", Color(1, 0.6, 0.4))
+		return
+	Game.gold -= 150
+	Game.morale = minf(100.0, Game.morale + 4.0)
+	_couple_scene(i, "dinner")
+
+
+## Cenas do casal (sem nada explícito): "kiss" beijo com a câmera girando e corações; "dance" dança na praça;
+## "dinner" jantar à luz de vela na porta da taverna; "night" beijo e a tela escurece até a manhã seguinte.
+func _couple_scene(i: int, kind: String) -> void:
 	hud.close_dialog()
-	if ctl.town == null or ctl.town.special.is_empty() or ctl.avatar.is_empty():
+	if ctl.cutscene or ctl.town == null or ctl.town.special.is_empty() or ctl.avatar.is_empty():
 		return
 	var nm := Game.romance_name(i)
 	var sp: Dictionary = ctl.town.special["p"]
 	var sroot: Node3D = sp["root"]
-	var spos := sroot.global_position
-	var to_cam := (ctl.foot_pos - spos)
+	var home := sroot.global_position
+	var home_yaw := sroot.rotation.y
+	var spos := home
+	var ps: PortSite = ctl.town.site
+	var u3 := Vector3(ps.dir.x, 0, ps.dir.y)
+	if kind == "dance":
+		spos = ps.town_center + u3 * 7.0
+		spos.y = world.walk_height(spos.x, spos.z)
+	var to_cam := (ctl.foot_pos - home)
 	to_cam.y = 0.0
-	if to_cam.length() < 0.1:
-		to_cam = Vector3(0, 0, 1)
+	if kind != "kiss" and kind != "night" or to_cam.length() < 0.1:
+		to_cam = Vector3(-u3.z, 0, u3.x)
 	var fwd := to_cam.normalized()
-	var side := Vector3(-fwd.z, 0, fwd.x)
-	# frente a frente, bem perto
-	ctl.foot_pos = spos + fwd * 0.5
-	ctl.avatar_yaw = atan2(fwd.x, fwd.z)
+	var gap := 0.5 if kind == "kiss" or kind == "night" else (1.0 if kind == "dance" else 1.5)
+	var table: Node3D = null
+	if kind == "dinner":
+		table = _dinner_table(spos + fwd * gap * 0.5, fwd)
+		world.add_child(table)
+	sroot.global_position = spos
 	sroot.rotation.y = atan2(-fwd.x, -fwd.z)
-	Assets.play(sp, "Idle")
-	Assets.musket_pose(ctl.avatar, MusketRig.NONE)
-	if ctl.avatar.has("sword") and is_instance_valid(ctl.avatar["sword"]):
-		ctl.avatar["sword"].visible = false
+	ctl.foot_pos = spos + fwd * gap
+	ctl.avatar_yaw = atan2(fwd.x, fwd.z)
+	if kind == "dinner":
+		# sentados frente a frente, cada um num banco
+		sroot.global_position = spos + Vector3(0, -0.09, 0) + fwd * 0.33
+		ctl.foot_pos = spos + fwd * gap + Vector3(0, -0.09, 0) - fwd * 0.33
+	var anim := "Idle"
+	match kind:
+		"dance":
+			anim = "Dance"
+		"dinner":
+			anim = "Sitting"
+	sp["cur"] = ""
+	Assets.play(sp, anim, 0.8 if kind == "dance" else 1.0)
+	ctl.cutscene = true
+	ctl.cutscene_anim = anim
+	ctl.move_vec = Vector2.ZERO
 	hud.modal = true
 	hud.root.visible = false
-	ctl.cutscene = true
-	ctl.move_vec = Vector2.ZERO
-	# os dois se inclinam um para o outro
+	if ctl.avatar.has("sword") and is_instance_valid(ctl.avatar["sword"]):
+		ctl.avatar["sword"].visible = false
 	var m1: Node3D = ctl.avatar["model"]
 	var m2: Node3D = sp["model"]
-	var tw := create_tween().set_parallel(true)
-	tw.tween_property(m1, "rotation:x", 0.12, 1.2)
-	tw.tween_property(m2, "rotation:x", 0.1, 1.2)
-	# câmera de cinema ao lado do casal
+	if kind == "kiss" or kind == "night":
+		var tw := create_tween().set_parallel(true)
+		tw.tween_property(m1, "rotation:x", 0.12, 1.2)
+		tw.tween_property(m2, "rotation:x", 0.1, 1.2)
+	# câmera de cinema girando devagar em volta do casal
 	var cam := Camera3D.new()
-	cam.fov = 40.0
+	cam.fov = 40.0 if kind == "kiss" or kind == "night" else 50.0
 	world.add_child(cam)
-	var mid := spos + fwd * 0.25 + Vector3(0, 1.55, 0)
-	cam.global_position = mid + side * 2.4 + Vector3(0, 0.15, 0) + fwd * 0.3
-	cam.look_at(mid, Vector3.UP)
+	var mid := spos + fwd * gap * 0.5 + Vector3(0, 1.45 if kind != "dinner" else 1.0, 0)
+	var dist := 2.4 if kind == "kiss" or kind == "night" else 4.2
+	var base_ang := atan2(fwd.z, fwd.x) + PI * 0.5
+	var orbit := func(t: float) -> void:
+		var a := base_ang + t
+		cam.global_position = mid + Vector3(cos(a), 0, sin(a)) * dist + Vector3(0, 0.25, 0)
+		cam.look_at(mid, Vector3.UP)
+	orbit.call(0.0)
 	cam.current = true
+	var dur := 5.0 if kind != "night" else 3.4
+	create_tween().tween_method(orbit, 0.0, 0.9, dur)
 	Sfx.play("bell", -14.0)
 	for k in 6:
 		var h := Label3D.new()
@@ -380,61 +454,129 @@ func _love_scene(i: int, night: bool) -> void:
 		h.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		h.no_depth_test = true
 		world.add_child(h)
-		h.global_position = mid + Vector3(randf_range(-0.25, 0.25), 0.2, randf_range(-0.25, 0.25))
+		h.global_position = mid + Vector3(randf_range(-0.35, 0.35), 0.25, randf_range(-0.35, 0.35))
 		var ht := create_tween()
-		ht.tween_interval(0.6 + k * 0.35)
+		ht.tween_interval(0.6 + k * 0.5)
 		ht.tween_property(h, "global_position", h.global_position + Vector3(0, 0.9, 0), 1.6)
 		ht.parallel().tween_property(h, "modulate:a", 0.0, 1.6)
 		ht.tween_callback(h.queue_free)
-	await get_tree().create_timer(3.4).timeout
-	if night:
-		# a tela escurece... e já é de manhã
-		var layer := CanvasLayer.new()
-		layer.layer = 50
-		add_child(layer)
-		var black := ColorRect.new()
-		black.color = Color(0, 0, 0, 0)
-		black.set_anchors_preset(Control.PRESET_FULL_RECT)
-		layer.add_child(black)
-		var lbl := Label.new()
-		lbl.text = "Mais tarde, naquela noite..."
-		lbl.set_anchors_preset(Control.PRESET_FULL_RECT)
-		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		lbl.add_theme_font_size_override("font_size", 30)
-		lbl.modulate = Color(1, 0.9, 0.8, 0)
-		layer.add_child(lbl)
-		var ft := create_tween()
-		ft.tween_property(black, "color:a", 1.0, 1.2)
-		ft.tween_property(lbl, "modulate:a", 1.0, 0.8)
-		await ft.finished
-		await get_tree().create_timer(1.8).timeout
-		Game.time_of_day = 0.27
-		Game.day += 1
-		Game.morale = minf(100.0, Game.morale + 25.0)
-		Game.add_affection(i, 8)
-		ctl.hp = 100.0
-		world._update_environment(true)
-		lbl.text = "Ao amanhecer, ao lado de %s." % nm
-		await get_tree().create_timer(1.6).timeout
-		var bt := create_tween()
-		bt.tween_property(lbl, "modulate:a", 0.0, 0.6)
-		bt.tween_property(black, "color:a", 0.0, 1.2)
-		await bt.finished
-		layer.queue_free()
-		Game.notify("Uma noite inesquecível com %s. Você e a tripulação descansaram (+moral)." % nm, Color(1, 0.8, 0.85))
-	else:
-		Game.notify("%s retribui o beijo e sorri. (afeto %d/100)" % [nm, Game.affection(i)], Color(1, 0.8, 0.85))
+	await get_tree().create_timer(dur).timeout
+	var once := int(Game.romance_day.get(str(i) + kind, -1)) != Game.day
+	Game.romance_day[str(i) + kind] = Game.day
+	match kind:
+		"night":
+			var layer := CanvasLayer.new()
+			layer.layer = 50
+			add_child(layer)
+			var black := ColorRect.new()
+			black.color = Color(0, 0, 0, 0)
+			black.set_anchors_preset(Control.PRESET_FULL_RECT)
+			layer.add_child(black)
+			var lbl := Label.new()
+			lbl.text = "Mais tarde, naquela noite..."
+			lbl.set_anchors_preset(Control.PRESET_FULL_RECT)
+			lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			lbl.add_theme_font_size_override("font_size", 30)
+			lbl.modulate = Color(1, 0.9, 0.8, 0)
+			layer.add_child(lbl)
+			var ft := create_tween()
+			ft.tween_property(black, "color:a", 1.0, 1.2)
+			ft.tween_property(lbl, "modulate:a", 1.0, 0.8)
+			await ft.finished
+			await get_tree().create_timer(1.8).timeout
+			Game.time_of_day = 0.27
+			Game.day += 1
+			Game.morale = minf(100.0, Game.morale + 25.0)
+			Game.add_affection(i, 8)
+			ctl.hp = 100.0
+			world._update_environment(true)
+			lbl.text = "Ao amanhecer, ao lado de %s." % nm
+			await get_tree().create_timer(1.6).timeout
+			var bt := create_tween()
+			bt.tween_property(lbl, "modulate:a", 0.0, 0.6)
+			bt.tween_property(black, "color:a", 0.0, 1.2)
+			await bt.finished
+			layer.queue_free()
+			Game.notify("Uma noite inesquecível com %s. Você e a tripulação descansaram (+moral)." % nm, Color(1, 0.8, 0.85))
+		"kiss":
+			if once:
+				Game.add_affection(i, 5)
+			Game.notify("%s retribui o beijo e sorri. (afeto %d/100)" % [nm, Game.affection(i)], Color(1, 0.8, 0.85))
+		"dance":
+			if once:
+				Game.add_affection(i, 8)
+				Game.morale = minf(100.0, Game.morale + 5.0)
+			Game.notify("Vocês dançaram na praça ao som da rabeca. (afeto %d/100)" % Game.affection(i), Color(1, 0.8, 0.85))
+		"dinner":
+			if once:
+				Game.add_affection(i, 10)
+			Game.notify("Um jantar à luz de velas com %s. (afeto %d/100)" % [nm, Game.affection(i)], Color(1, 0.8, 0.85))
+	# rumores: namorar outra pessoa sendo casado deixa o cônjuge com ciúme
+	if Game.spouse >= 0 and Game.spouse != i and once:
+		Game.add_affection(Game.spouse, -8)
+		Game.notify("Rumores devem chegar a %s..." % Game.romance_name(Game.spouse), Color(1, 0.6, 0.5))
 	var back := create_tween().set_parallel(true)
 	back.tween_property(m1, "rotation:x", 0.0, 0.6)
 	back.tween_property(m2, "rotation:x", 0.0, 0.6)
 	cam.queue_free()
+	if table:
+		table.queue_free()
+	if is_instance_valid(sroot):
+		sroot.global_position = home
+		sroot.rotation.y = home_yaw
+		sp["cur"] = ""
+		Assets.play(sp, "Idle")
+	if kind == "dinner":
+		ctl.foot_pos = home + fwd * 1.6
+	ctl.foot_pos.y = world.walk_height(ctl.foot_pos.x, ctl.foot_pos.z)
 	ctl.cam.current = true
 	ctl.cutscene = false
-	hud.root.visible = true
+	ctl.cutscene_anim = ""
 	if ctl.avatar.has("sword") and is_instance_valid(ctl.avatar["sword"]):
 		ctl.avatar["sword"].visible = true
+	hud.root.visible = true
 	hud.modal = false
+
+
+## Mesa com toalha, dois bancos, pratos, garrafa e uma vela acesa.
+func _dinner_table(c: Vector3, fwd: Vector3) -> Node3D:
+	var root := Node3D.new()
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var b := Basis(Vector3.UP, atan2(fwd.x, fwd.z))
+	var wood := Color(0.42, 0.28, 0.17)
+	c.y = world.walk_height(c.x, c.z)
+	Structures.box(st, Transform3D(b, c + Vector3(0, 0.74, 0)), Vector3(0.9, 0.05, 0.75), Color(0.93, 0.91, 0.86), Structures.PLAIN)
+	for sx in [-0.38, 0.38]:
+		for sz in [-0.3, 0.3]:
+			Structures.box(st, Transform3D(b, c + b * Vector3(sx, 0.36, sz)), Vector3(0.06, 0.72, 0.06), wood, Structures.WOOD)
+	for s in [-1.0, 1.0]:
+		var sc: Vector3 = c + b * Vector3(0, 0, s * 0.75)
+		Structures.box(st, Transform3D(b, sc + Vector3(0, 0.43, 0)), Vector3(0.45, 0.06, 0.4), wood, Structures.WOOD)
+		Structures.box(st, Transform3D(b, sc + Vector3(0, 0.2, 0)), Vector3(0.36, 0.4, 0.3), wood.darkened(0.2), Structures.WOOD)
+		Structures.cyl(st, c + b * Vector3(0, 0.765, s * 0.22), c + b * Vector3(0, 0.78, s * 0.22), 0.13, 0.13, Color(0.9, 0.88, 0.82), Structures.PLAIN, 12)
+	Structures.cyl(st, c + b * Vector3(0.25, 0.765, 0), c + b * Vector3(0.25, 1.0, 0), 0.045, 0.03, Color(0.15, 0.3, 0.12), Structures.DARK, 8)
+	Structures.cyl(st, c + b * Vector3(-0.2, 0.765, 0), c + b * Vector3(-0.2, 0.92, 0), 0.025, 0.025, Color(0.95, 0.93, 0.85), Structures.PLAIN, 6)
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = Structures.material()
+	root.add_child(mi)
+	var flame := OmniLight3D.new()
+	flame.light_color = Color(1.0, 0.7, 0.35)
+	flame.light_energy = 1.6
+	flame.omni_range = 4.0
+	flame.position = c + b * Vector3(-0.2, 0.98, 0)
+	root.add_child(flame)
+	var fl := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.02
+	sm.height = 0.05
+	fl.mesh = sm
+	fl.material_override = ShipBuilder.glow_material()
+	fl.position = c + b * Vector3(-0.2, 0.95, 0)
+	root.add_child(fl)
+	return root
 
 
 ## Viagem rápida até um porto amigo (como no Black Flag): o tempo passa conforme a distância.

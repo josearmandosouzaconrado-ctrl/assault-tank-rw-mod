@@ -136,6 +136,7 @@ var morale := 70.0           # moral da tripulação 0..100
 var soldiers := 0            # tropas (mercenários/fuzileiros) a bordo
 var romance := {}            # índice do porto (texto) -> afeto 0..100
 var romance_day := {}        # último dia de conversa por porto
+var romance_quest := {}      # pedido especial por porto: {"good", "qty"}
 var spouse := -1             # porto onde mora quem casou com você
 var drunk := 0.0             # segundos de bebedeira (efeito visual)
 var outfit := 0              # roupa do capitão (Assets.OUTFITS)
@@ -193,6 +194,7 @@ func new_game(chosen_career: int, cname: String) -> void:
 	soldiers = 0
 	romance = {}
 	romance_day = {}
+	romance_quest = {}
 	spouse = -1
 	var start_port := 4
 	if career == PIR:
@@ -535,7 +537,7 @@ func to_dict() -> Dictionary:
 		"px": player_pos.x, "pz": player_pos.y, "yaw": player_yaw, "stats": stats,
 		"kingdom": kingdom_name, "conquered": conquered,
 		"outfit": outfit, "coat_color": coat_color, "hat": hat, "musket": musket,
-		"morale": morale, "soldiers": soldiers, "romance": romance, "romance_day": romance_day, "spouse": spouse,
+		"morale": morale, "soldiers": soldiers, "romance": romance, "romance_day": romance_day, "romance_quest": romance_quest, "spouse": spouse,
 	}
 
 
@@ -628,6 +630,7 @@ func load_game() -> bool:
 	soldiers = int(d.get("soldiers", 0))
 	romance = d.get("romance", {})
 	romance_day = d.get("romance_day", {})
+	romance_quest = d.get("romance_quest", {})
 	spouse = int(d.get("spouse", -1))
 	return true
 

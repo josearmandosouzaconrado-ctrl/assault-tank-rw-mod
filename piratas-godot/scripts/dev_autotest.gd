@@ -205,7 +205,18 @@ func _run() -> void:
 	await _shot("14c_romance")
 	main.hud.close_dialog()
 	Game.romance[str(isl.idx)] = 90
-	main._love_scene(isl.idx, true)
+	main._couple_scene(isl.idx, "dance")
+	await _wait(2.5)
+	await _shot("14c1_danca")
+	while main.ctl.cutscene:
+		await _wait(0.3)
+	main._date_dinner(isl.idx)
+	await _wait(2.5)
+	await _shot("14c1b_jantar")
+	while main.ctl.cutscene:
+		await _wait(0.3)
+	main._quest_options(isl.idx, [])
+	main._couple_scene(isl.idx, "night")
 	await _wait(2.2)
 	await _shot("14c2_beijo")
 	await _wait(3.5)

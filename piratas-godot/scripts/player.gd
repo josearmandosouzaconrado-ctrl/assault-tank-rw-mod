@@ -44,6 +44,7 @@ var musket_cd := 0.0
 var _shoot_anim := 0.0
 var _slash_t := 0.0
 var cutscene := false
+var cutscene_anim := ""
 var hud_ref: Node
 var board: Boarding          # luta de abordagem em andamento
 var _board_prev := Mode.THIRD
@@ -587,7 +588,7 @@ func _foot(delta: float) -> void:
 	_shoot_anim = maxf(0.0, _shoot_anim - delta)
 	_slash_t = maxf(0.0, _slash_t - delta)
 	if avatar.has("sword") and is_instance_valid(avatar["sword"]):
-		avatar["sword"].visible = _shoot_anim <= 0.0 and digging <= 0.0
+		avatar["sword"].visible = _shoot_anim <= 0.0 and digging <= 0.0 and not cutscene
 	if digging > 0.0:
 		mv = Vector2.ZERO
 		var before := digging
@@ -623,6 +624,8 @@ func _foot(delta: float) -> void:
 		root.global_position = foot_pos
 		if cutscene:
 			Assets.musket_pose(avatar, MusketRig.NONE)
+			if cutscene_anim != "":
+				Assets.play(avatar, cutscene_anim, 0.8 if cutscene_anim == "Dance" else 1.0)
 		elif _shoot_anim > 0.0:
 			Assets.musket_pose(avatar, MusketRig.AIM)
 		elif digging <= 0.0:
