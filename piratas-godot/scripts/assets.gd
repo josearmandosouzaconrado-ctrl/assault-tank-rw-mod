@@ -129,7 +129,7 @@ const MUSKETS := [
 	{"name": "Par de pistolas", "price": 1200, "reload": 1.5, "acc": 0.62, "range": 28.0},
 	{"name": "Mosquete de precisão", "price": 1800, "reload": 3.4, "acc": 0.93, "range": 75.0},
 ]
-const SKIN_TONES := [Color(0.93, 0.76, 0.62), Color(0.8, 0.6, 0.45), Color(0.62, 0.43, 0.29), Color(0.42, 0.28, 0.18), Color(0.3, 0.2, 0.13)]
+const SKIN_TONES := [Color(0.8, 0.62, 0.48), Color(0.72, 0.53, 0.38), Color(0.6, 0.42, 0.29), Color(0.45, 0.3, 0.2), Color(0.32, 0.21, 0.14)]
 const HAIR := [Color(0.1, 0.07, 0.05), Color(0.3, 0.18, 0.08), Color(0.55, 0.38, 0.18), Color(0.75, 0.62, 0.35), Color(0.5, 0.5, 0.5)]
 const CLOTH := [Color(0.75, 0.7, 0.58), Color(0.45, 0.3, 0.2), Color(0.3, 0.35, 0.5), Color(0.6, 0.2, 0.15), Color(0.86, 0.82, 0.74),
 	Color(0.35, 0.45, 0.3), Color(0.55, 0.5, 0.35), Color(0.5, 0.25, 0.4), Color(0.25, 0.3, 0.35), Color(0.65, 0.55, 0.3)]
@@ -253,7 +253,9 @@ static func person(kind: String, rng: RandomNumberGenerator, opts := {}) -> Dict
 	var root := Node3D.new()
 	var model: Node3D = scene(HUMAN_F if female else HUMAN_M).instantiate()
 	var sc := (1.0 if kind == "capitao" else rng.randf_range(0.95, 1.04))
-	model.scale = Vector3.ONE * sc
+	# físicos diferentes: magros, normais e mais corpulentos
+	var build := 1.0 if kind == "capitao" else rng.randf_range(0.92, 1.1)
+	model.scale = Vector3(sc * build, sc, sc * build)
 	model.rotation.y = PI   # o modelo olha para +Z; no jogo a frente é -Z
 	if female:
 		model.position.y = -0.017   # a mulher usa as animações do homem (bacia um pouco mais alta)

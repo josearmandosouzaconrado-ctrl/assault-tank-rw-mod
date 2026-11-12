@@ -82,7 +82,8 @@ void fragment() {
 		SPECULAR = shoe ? 0.5 : 0.2;
 	} else {
 		ALBEDO = tex * skin_mul;
-		NORMAL_MAP = nm;
+		// o rosto mantém o detalhe; no corpo o relevo dos músculos fica bem mais suave
+		NORMAL_MAP = rp.y > m2.w ? nm : mix(vec3(0.5, 0.5, 1.0), nm, 0.35);
 		ROUGHNESS = 0.58;
 		SPECULAR = 0.4;
 	}

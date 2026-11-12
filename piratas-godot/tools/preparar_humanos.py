@@ -5,6 +5,7 @@
   a partir do osso dominante, e guarda a posição de repouso em COLOR_0.gba (o shader recorta as roupas por pixel)
 - guarda só as animações usadas no jogo (só no modelo masculino; a mulher usa as mesmas),
   só com rotações (e a translação da bacia), o que reduz muito o arquivo
+- tira o aspecto de "super-herói": suaviza os músculos e afina braços, peitoral e coxas
 - tira do .glb as texturas do corpo (gravadas à parte em 1024 px) e reduz as outras.
 
 uso: python3 tools/preparar_humanos.py PASTA_ORIGINAIS assets/humans
@@ -99,6 +100,75 @@ def smooth_normals(pos, nrm):
     return out.astype(np.float32)
 
 
+def _ss(a, b, x):
+    t = np.clip((x - a) / (b - a), 0.0, 1.0)
+    return t * t * (3 - 2 * t)
+
+
+def deflate(pos, idx, jp, female):
+    """Tira o aspecto de "super-herói" do modelo-base: suaviza os músculos (Taubin) e afina
+    braços, peitoral, dorsais e coxas, mantendo cabeça, mãos e pés intactos."""
+    key = np.round(pos / 1e-4).astype(np.int64)
+    _, first, inv = np.unique(key, axis=0, return_index=True, return_inverse=True)
+    inv = inv.reshape(-1)
+    u = pos[first].astype(np.float64)
+    n = len(u)
+    tri = inv[idx.reshape(-1, 3)]
+    e = np.concatenate([tri[:, [0, 1]], tri[:, [1, 2]], tri[:, [2, 0]]])
+    e = np.concatenate([e, e[:, ::-1]])
+    deg = np.bincount(e[:, 0], minlength=n).astype(np.float64)
+    x, y, z = u[:, 0], u[:, 1], u[:, 2]
+    ax = np.abs(x)
+    neck = jp["neck_01"][1]
+    hand = jp["hand_l"][0]
+    sh = jp["upperarm_l"]
+    el = jp["lowerarm_l"][0]
+    mask = (1 - _ss(neck - 0.02, neck + 0.04, y)) * (1 - _ss(hand - 0.05, hand - 0.01, ax)) * _ss(0.1, 0.16, y)
+    # suavização de Taubin (não encolhe a malha)
+    for it in range(24):
+        for lam in (0.5, -0.53):
+            avg = np.zeros_like(u)
+            np.add.at(avg, e[:, 0], u[e[:, 1]])
+            avg /= np.maximum(deg, 1)[:, None]
+            u += (avg - u) * lam * mask[:, None]
+    x, y, z = u[:, 0], u[:, 1], u[:, 2]
+    ax = np.abs(x)
+    # braços: mais finos em volta do eixo do braço (T-pose ao longo de X)
+    arm = _ss(sh[0] - 0.06, sh[0] + 0.05, ax) * (1 - _ss(hand - 0.03, hand + 0.01, ax))
+    k_up, k_fore = (0.9, 0.94) if female else (0.8, 0.88)
+    k = np.where(ax < el, k_up, k_up + (k_fore - k_up) * _ss(el - 0.04, el + 0.06, ax))
+    f = 1 - arm * (1 - k)
+    u[:, 1] = sh[1] + (y - sh[1]) * f
+    u[:, 2] = sh[2] + (z - sh[2]) * f
+    torso = (1 - _ss(sh[0] - 0.04, sh[0] + 0.03, ax)) * _ss(0.98, 1.1, y) * (1 - _ss(neck - 0.04, neck + 0.02, y))
+    if not female:
+        # dorsais menos abertos e peitoral mais baixo
+        lat = torso * _ss(1.12, 1.25, y) * (1 - _ss(1.42, 1.5, y))
+        u[:, 0] = x * (1 - 0.08 * lat)
+        pec = torso * _ss(1.2, 1.28, y) * (1 - _ss(1.42, 1.48, y)) * _ss(0.0, 0.05, z)
+        u[:, 2] = np.where(z > 0.0, z - pec * 0.22 * z, u[:, 2])
+        # cintura menos fina (menos "V")
+        waist = _ss(0.96, 1.04, y) * (1 - _ss(1.12, 1.22, y)) * (1 - _ss(sh[0] - 0.04, sh[0], ax))
+        u[:, 0] = u[:, 0] * (1 + 0.04 * waist)
+    # coxas e panturrilhas menos volumosas
+    lx = jp["thigh_l"][0]
+    lz = jp["thigh_l"][2]
+    leg = (1 - _ss(0.92, 1.0, y)) * _ss(0.12, 0.2, y) * _ss(0.02, 0.05, ax)
+    kl = np.where(y > 0.5, 0.95 if female else 0.9, 0.96)
+    fl = 1 - leg * (1 - kl)
+    sx = np.sign(x)
+    u[:, 0] = np.where(leg > 0, sx * (lx + (ax - lx) * fl), u[:, 0])
+    u[:, 2] = np.where(leg > 0, lz + (u[:, 2] - lz) * fl, u[:, 2])
+    out = u[inv].astype(np.float32)
+    # normais recalculadas pela nova forma (iguais nos vértices duplicados)
+    fn = np.cross(u[tri[:, 1]] - u[tri[:, 0]], u[tri[:, 2]] - u[tri[:, 0]])
+    vn = np.zeros_like(u)
+    for c in range(3):
+        np.add.at(vn, tri[:, c], fn)
+    vn /= np.maximum(np.linalg.norm(vn, axis=1, keepdims=True), 1e-9)
+    return out, vn[inv].astype(np.float32)
+
+
 def img_bytes(j, binb, idx):
     im = j["images"][idx]
     bv = j["bufferViews"][im["bufferView"]]
@@ -110,6 +180,8 @@ def process(src, dst_dir, tag, keep_anims):
     j, binb = load(src)
     out = Out()
     jnames = [j["nodes"][k]["name"] for k in j["skins"][0]["joints"]]
+    ibm = acc(j, binb, j["skins"][0]["inverseBindMatrices"]).reshape(-1, 4, 4)
+    jpos = {nm: np.linalg.inv(ibm[i].T)[:3, 3] for i, nm in enumerate(jnames)}
     # texturas: corpo à parte; o resto pequeno dentro do .glb
     body_mat = [i for i, m in enumerate(j["materials"]) if "Superhero" in m["name"]][0]
     bm = j["materials"][body_mat]
@@ -164,8 +236,10 @@ def process(src, dst_dir, tag, keep_anims):
             if we.dtype != np.float32:
                 we = we.astype(np.float32) / np.iinfo(we.dtype).max
             nrm = acc(j, binb, at["NORMAL"]).astype(np.float32)
+            idx0 = acc(j, binb, p["indices"]).reshape(-1)
+            rest = pos.copy()
             if p.get("material") == body_mat:
-                nrm = smooth_normals(pos, nrm)
+                pos, nrm = deflate(pos, idx0, jpos, tag == "f")
             na = {"POSITION": out.acc(pos, 5126, "VEC3", 34962, True),
                   "NORMAL": out.acc(nrm, 5126, "VEC3", 34962),
                   "TEXCOORD_0": out.acc(acc(j, binb, at["TEXCOORD_0"]).astype(np.float32), 5126, "VEC2", 34962),
@@ -175,9 +249,9 @@ def process(src, dst_dir, tag, keep_anims):
                 reg = regions(pos, jo, we, jnames)
                 col = np.zeros((len(pos), 4), np.float32)
                 col[:, 0] = reg / 10.0
-                col[:, 1] = (pos[:, 0] + 1.0) * 0.5   # posição de repouso (espaço do modelo, frente = +Z)
-                col[:, 2] = pos[:, 1] * 0.5
-                col[:, 3] = pos[:, 2] + 0.5
+                col[:, 1] = (rest[:, 0] + 1.0) * 0.5   # posição de repouso (espaço do modelo, frente = +Z)
+                col[:, 2] = rest[:, 1] * 0.5
+                col[:, 3] = rest[:, 2] + 0.5
                 na["COLOR_0"] = out.acc(col, 5126, "VEC4", 34962)
                 print(tag, "regiões", np.bincount(reg.astype(int)))
             idx = acc(j, binb, p["indices"]).astype(np.uint16 if len(pos) < 65535 else np.uint32).reshape(-1)
