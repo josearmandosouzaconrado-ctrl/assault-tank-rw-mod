@@ -14,7 +14,7 @@ var _save_timer := 90.0
 var _board_target: Ship
 var _talk_target: Dictionary = {}
 
-const MENU_POINT := Vector2(-1700, -420)
+const MENU_POINT := Vector2(1150, 1300)
 
 
 func _ready() -> void:
@@ -111,6 +111,7 @@ func _enter_game() -> void:
 	port_ui.walk_town.connect(_walk_town)
 	map_ui = MapUI.new()
 	add_child(map_ui)
+	map_ui.fast_travel.connect(_fast_travel)
 	map_ui.closed.connect(func():
 		get_tree().paused = false
 		hud.modal = false)
@@ -301,6 +302,43 @@ func _romance(i: int) -> void:
 			Game.save_game()])
 	opts.append(["Até logo", Callable()])
 	hud.show_dialog(nm, mood + "  (afeto %d/100)" % a, opts)
+
+
+## Viagem rápida até um porto amigo (como no Black Flag): o tempo passa conforme a distância.
+func _fast_travel(i: int) -> void:
+	get_tree().paused = false
+	hud.modal = false
+	var p := world.player
+	if p == null or p.dead or ctl.on_land():
+		Game.notify("Volte ao navio para viajar.", Color(1, 0.6, 0.4))
+		return
+	for s in world.ships:
+		if not s.is_player and not s.dead and world.hostile(p, s) and s.pos2().distance_to(p.pos2()) < 900.0:
+			Game.notify("Há inimigos por perto! Não dá para viajar agora.", Color(1, 0.4, 0.3))
+			return
+	var ps := world.port_islands[i]
+	var dist := p.pos2().distance_to(ps.dock_point)
+	var secs := dist / 9.0
+	var days_before := Game.day
+	Game.advance_time(secs)
+	menu.show_loading("Navegando até %s..." % ps.name)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	for s in world.ships.duplicate():
+		if not s.is_player:
+			world.remove_ship(s)
+	world.proj.clear_all()
+	var dp := world.dock_spawn(i)
+	p.global_position = Vector3(dp.x, 0.0, dp.y)
+	p.yaw = atan2(ps.dir.y, -ps.dir.x)
+	p.speed = 0.0
+	ctl.sail_target = 0.0
+	Game.player_pos = dp
+	world.build_islands_near(dp, 3200.0)
+	world._update_environment(true)
+	menu.hide_menu()
+	Game.notify("Chegou a %s após %d dia(s) de viagem." % [ps.name, Game.day - days_before], Color(0.85, 0.95, 1))
+	Game.save_game()
 
 
 func _walk_town(i: int) -> void:

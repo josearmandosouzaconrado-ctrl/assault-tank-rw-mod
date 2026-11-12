@@ -107,7 +107,7 @@ func show_main() -> void:
 	var o := UiStyle.button("Opções", 56, 20)
 	o.pressed.connect(show_options)
 	vb.add_child(o)
-	var cred := UiStyle.label("Feito em Godot 4 • tudo gerado por código: ondas, navios, ilhas e música", 13, Color(1, 1, 1, 0.55))
+	var cred := UiStyle.label("Feito em Godot 4 • mapa real do Caribe (Natural Earth) • modelos e texturas CC0 de Kenney, Quaternius e ambientCG", 13, Color(1, 1, 1, 0.55))
 	cred.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	cred.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	cred.offset_left = -400

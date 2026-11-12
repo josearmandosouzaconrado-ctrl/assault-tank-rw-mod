@@ -345,7 +345,7 @@ func _mission_offers() -> Array:
 		var base: Vector2 = w.port_islands[port].dock_point
 		for k in 30:
 			var q := base + Vector2.from_angle(r.randf() * TAU) * r.randf_range(1800.0, 4200.0)
-			if absf(q.x) < 7500 and absf(q.y) < 7500 and w.terrain_height(q.x, q.y) < -12.0:
+			if absf(q.x) < Game.WORLD_HALF - 600.0 and absf(q.y) < Game.WORLD_HALF - 600.0 and w.terrain_height(q.x, q.y) < -12.0:
 				return q
 		return base + Vector2(1500, 0)
 	if owner != Game.PIR:

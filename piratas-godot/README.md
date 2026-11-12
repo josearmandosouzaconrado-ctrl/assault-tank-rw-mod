@@ -9,7 +9,7 @@ as casas, o forte, o cais e a vegetação usam modelos 3D gratuitos (CC0) da **K
 
 ## Baixar o APK
 
-APK pronto: [`apk/MaresDeFortuna-v1.5.apk`](../apk/MaresDeFortuna-v1.5.apk) (Android 7 ou superior).
+APK pronto: [`apk/MaresDeFortuna-v1.6.apk`](../apk/MaresDeFortuna-v1.6.apk) (Android 7 ou superior).
 
 Cada push na pasta `piratas-godot/` gera um APK pelo GitHub Actions (workflow *Mares de Fortuna (Godot) - APK*):
 
@@ -36,7 +36,8 @@ Como pirata, sua infâmia cresce (Marujo Rebelde → Rei dos Piratas) e caçador
 
 ## O que dá para fazer
 
-- **Navegar** por um Caribe de 16 × 16 km com 19 portos: Cuba, Hispaniola, Jamaica, Porto Rico, Bahamas, Pequenas Antilhas, Flórida e a costa dos EUA, Yucatán e México, e a costa da América do Sul. O vento muda, e a velocidade depende do ângulo do navio em relação a ele.
+- **Navegar** por um Caribe de 24 × 24 km com o contorno real das costas (dados do Natural Earth) e 19 portos nas posições históricas: Cuba, Hispaniola, Jamaica, Porto Rico, Bahamas, Pequenas Antilhas, Flórida e a costa dos EUA, Yucatán e México, e a costa da América do Sul. O vento muda, e a velocidade depende do ângulo do navio em relação a ele.
+- **Viagem rápida**: no mapa, toque num porto amigo e em *Viagem rápida* (os dias passam conforme a distância).
 - **Andar pelas cidades** (botão *Passear* no porto): moradores pelas ruas, guardas com a farda da nação, taverna, igreja e forte.
 - **Cavalgar**: pegue um cavalo no estábulo e siga pelas estradas que ligam as cidades da mesma ilha ou do continente.
 - **Exército**: contrate soldados na taverna. Eles lutam nas abordagens e invasões e seguem você em terra.

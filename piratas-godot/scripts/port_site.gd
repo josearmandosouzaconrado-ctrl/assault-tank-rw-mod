@@ -28,17 +28,24 @@ func _init(i: int, d: Dictionary) -> void:
 	name = d["name"]
 	nation = d["nation"]
 	seed_pos = d["pos"]
-	dir = (d["dir"] as Vector2).normalized()
+	dir = (d["dir"] as Vector2).normalized() if (d["dir"] as Vector2) != Vector2.ZERO else Vector2.ZERO
 
 
 ## Calcula posições (sem construir malhas). Usa só o relevo "cru" (sem o aplainamento das cidades).
 func plan(w: World) -> void:
+	# a cidade fica ~130 m terra adentro; a direção do mar sai do gradiente da distância à costa
 	var p := seed_pos
-	# se o ponto inicial estiver no mar, anda para terra
-	var guard := 0
-	while w.raw_height(p.x, p.y) < 1.5 and guard < 300:
-		p -= dir * 6.0
-		guard += 1
+	for k in 120:
+		var sd := w.sdf(p.x, p.y)
+		if absf(sd - 130.0) < 4.0:
+			break
+		var g := w.sdf_grad(p.x, p.y)
+		if g.length() < 0.001:
+			break
+		p += g.normalized() * clampf(130.0 - sd, -20.0, 20.0)
+	if dir == Vector2.ZERO:
+		var g2 := w.sdf_grad(p.x, p.y)
+		dir = -g2.normalized() if g2.length() > 0.001 else Vector2.DOWN
 	coast_point = _march_to_sea(w, p, dir)
 	dock_point = coast_point + dir * 95.0
 	var tc := coast_point - dir * 125.0

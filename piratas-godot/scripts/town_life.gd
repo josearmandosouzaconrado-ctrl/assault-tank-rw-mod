@@ -183,7 +183,7 @@ func setup(ps: PortSite) -> void:
 	# cavalos no estábulo
 	var side := Vector2(-ps.dir.y, ps.dir.x)
 	for i in 2:
-		var hp := Vector2(ps.stable_pos.x, ps.stable_pos.z) + side * (i * 5.0 - 2.5) - ps.dir * 5.0
+		var hp := Vector2(ps.stable_pos.x, ps.stable_pos.z) + side * (i * 5.0 - 2.5) + ps.dir * 8.0
 		var h := Horse.new(Assets.horse())
 		add_child(h)
 		h.place(hp, atan2(-ps.dir.x, -ps.dir.y))

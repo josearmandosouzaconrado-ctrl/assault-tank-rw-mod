@@ -111,6 +111,8 @@ static func _materials() -> void:
 		return
 	_terrain_mat = ShaderMaterial.new()
 	_terrain_mat.shader = load("res://shaders/terrain.gdshader")
+	for t in ["grama_cor", "grama_normal", "areia_cor", "areia_normal", "rocha_cor", "rocha_normal"]:
+		_terrain_mat.set_shader_parameter(t, load("res://assets/terrain/%s.png" % t))
 	_veg_mat = StandardMaterial3D.new()
 	_veg_mat.vertex_color_use_as_albedo = true
 	_veg_mat.vertex_color_is_srgb = true

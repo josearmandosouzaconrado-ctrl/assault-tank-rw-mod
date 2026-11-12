@@ -3,11 +3,13 @@ extends CanvasLayer
 ## Mapa do arquipélago: ilhas, portos (com a cor do dono), jogador, missão e tesouro.
 
 signal closed
+signal fast_travel(port_idx: int)
 
 var canvas: Control
 var info: Label
 var _outlines := {}
 var _sel := -1
+var travel_btn: Button
 
 
 func _ready() -> void:
@@ -40,6 +42,18 @@ func open() -> void:
 		visible = false
 		closed.emit())
 	add_child(close)
+	travel_btn = UiStyle.button("Viagem rápida", 52, 18)
+	travel_btn.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	travel_btn.offset_left = 16
+	travel_btn.offset_right = 300
+	travel_btn.offset_top = 14
+	travel_btn.offset_bottom = 66
+	travel_btn.visible = false
+	travel_btn.pressed.connect(func():
+		if _sel >= 0:
+			visible = false
+			fast_travel.emit(_sel))
+	add_child(travel_btn)
 	info = UiStyle.label("Toque num porto para ver detalhes.", 16)
 	info.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	info.offset_top = -64
@@ -138,4 +152,8 @@ func _on_input(e: InputEvent) -> void:
 			info.text = "%s (%s) — produz %s; procura %s. Distância: %.1f km. %s" % [p["name"], Game.NATIONS[nat]["name"],
 				", ".join(p["prod"].map(func(x): return Game.good_name(x))), ", ".join(p["need"].map(func(x): return Game.good_name(x))),
 				dist / 1000.0, "Hostil a você!" if not Game.can_dock(best) else "Você pode atracar."]
+			travel_btn.visible = Game.can_dock(best)
+			travel_btn.text = "Viagem rápida até %s" % p["name"]
+		else:
+			travel_btn.visible = false
 		canvas.queue_redraw()

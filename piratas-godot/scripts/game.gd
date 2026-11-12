@@ -5,7 +5,7 @@ signal message(text: String, color: Color)
 signal state_changed
 
 const SAVE_PATH := "user://mares_save.json"
-const WORLD_HALF := 8200.0
+const WORLD_HALF := 12000.0
 
 # ---------------------------------------------------------------- Nações
 enum { ENG, ESP, FRA, HOL, POR, PIR }
@@ -76,25 +76,25 @@ const GOODS := [
 # ---------------------------------------------------------------- Portos
 # pos = (x, z) no mundo; -Z = norte. produz = barato; precisa = caro
 const PORTS_DEF := [
-	{"name": "Charles Town", "nation": ENG, "pos": Vector2(-2000, -8150), "dir": Vector2(0, 1), "r": 600, "prod": ["madeira", "tabaco"], "need": ["tecidos", "rum"]},
-	{"name": "St. Augustine", "nation": ESP, "pos": Vector2(-4250, -6900), "dir": Vector2(1, 0), "r": 500, "prod": ["madeira", "tabaco"], "need": ["polvora", "tecidos"]},
-	{"name": "Nassau", "nation": PIR, "pos": Vector2(-2300, -5850), "dir": Vector2(0, -1), "r": 400, "prod": ["rum", "polvora"], "need": ["especiarias", "tecidos"]},
-	{"name": "Havana", "nation": ESP, "pos": Vector2(-5900, -4500), "dir": Vector2(0, -1), "r": 800, "prod": ["tabaco", "acucar"], "need": ["tecidos", "polvora"]},
-	{"name": "Santiago de Cuba", "nation": ESP, "pos": Vector2(-800, -2750), "dir": Vector2(0, 1), "r": 600, "prod": ["acucar", "cafe"], "need": ["tecidos", "rum"]},
-	{"name": "Veracruz", "nation": ESP, "pos": Vector2(-8150, 300), "dir": Vector2(1, 0), "r": 800, "prod": ["especiarias", "cafe"], "need": ["tecidos", "polvora"]},
-	{"name": "Campeche", "nation": ESP, "pos": Vector2(-8000, -3250), "dir": Vector2(0, -1), "r": 600, "prod": ["madeira", "especiarias"], "need": ["rum", "tecidos"]},
-	{"name": "Port Royal", "nation": ENG, "pos": Vector2(-1950, -950), "dir": Vector2(0.3, 1), "r": 700, "prod": ["rum", "acucar"], "need": ["especiarias", "madeira"]},
-	{"name": "Tortuga", "nation": PIR, "pos": Vector2(1900, -3450), "dir": Vector2(0, -1), "r": 400, "prod": ["rum", "madeira"], "need": ["polvora", "especiarias"]},
-	{"name": "Petit-Goâve", "nation": FRA, "pos": Vector2(1500, -2150), "dir": Vector2(0, 1), "r": 550, "prod": ["cafe", "acucar"], "need": ["polvora", "tecidos"]},
-	{"name": "Santo Domingo", "nation": ESP, "pos": Vector2(3300, -2050), "dir": Vector2(0, 1), "r": 700, "prod": ["acucar", "cafe"], "need": ["tecidos", "rum"]},
-	{"name": "San Juan", "nation": ESP, "pos": Vector2(5800, -2600), "dir": Vector2(0, -1), "r": 600, "prod": ["acucar", "madeira"], "need": ["especiarias", "polvora"]},
-	{"name": "Sint Eustatius", "nation": HOL, "pos": Vector2(7200, -1600), "dir": Vector2(-1, 0.3), "r": 450, "prod": ["tecidos", "polvora"], "need": ["acucar", "tabaco"]},
-	{"name": "Fort-Royal", "nation": FRA, "pos": Vector2(7300, 700), "dir": Vector2(-1, 0), "r": 600, "prod": ["cafe", "rum"], "need": ["madeira", "tecidos"]},
-	{"name": "Bridgetown", "nation": ENG, "pos": Vector2(7550, 2450), "dir": Vector2(-1, 0), "r": 550, "prod": ["acucar", "rum"], "need": ["madeira", "cafe"]},
-	{"name": "Willemstad", "nation": HOL, "pos": Vector2(2300, 3950), "dir": Vector2(0, 1), "r": 600, "prod": ["tecidos", "especiarias"], "need": ["tabaco", "madeira"]},
-	{"name": "Cartagena", "nation": ESP, "pos": Vector2(-2400, 6000), "dir": Vector2(0, -1), "r": 800, "prod": ["especiarias", "tabaco"], "need": ["rum", "tecidos"]},
-	{"name": "Salvador", "nation": POR, "pos": Vector2(4800, 5000), "dir": Vector2(0, -1), "r": 750, "prod": ["acucar", "tabaco"], "need": ["especiarias", "rum"]},
-	{"name": "Olinda", "nation": POR, "pos": Vector2(7600, 4750), "dir": Vector2(0, -1), "r": 600, "prod": ["acucar", "madeira"], "need": ["tecidos", "polvora"]},
+	{"name": "Charles Town", "nation": ENG, "pos": Vector2(-899, -8853), "dir": Vector2.ZERO, "r": 600, "prod": ["madeira", "tabaco"], "need": ["tecidos", "rum"]},
+	{"name": "St. Augustine", "nation": ESP, "pos": Vector2(-1766, -6933), "dir": Vector2.ZERO, "r": 500, "prod": ["madeira", "tabaco"], "need": ["polvora", "tecidos"]},
+	{"name": "Nassau", "nation": PIR, "pos": Vector2(729, -3707), "dir": Vector2.ZERO, "r": 400, "prod": ["rum", "polvora"], "need": ["especiarias", "tecidos"]},
+	{"name": "Havana", "nation": ESP, "pos": Vector2(-2426, -2427), "dir": Vector2.ZERO, "r": 800, "prod": ["tabaco", "acucar"], "need": ["tecidos", "polvora"]},
+	{"name": "Santiago de Cuba", "nation": ESP, "pos": Vector2(1678, -347), "dir": Vector2.ZERO, "r": 600, "prod": ["acucar", "cafe"], "need": ["tecidos", "rum"]},
+	{"name": "Veracruz", "nation": ESP, "pos": Vector2(-11079, 213), "dir": Vector2.ZERO, "r": 800, "prod": ["especiarias", "cafe"], "need": ["tecidos", "polvora"]},
+	{"name": "Campeche", "nation": ESP, "pos": Vector2(-7560, -233), "dir": Vector2.ZERO, "r": 600, "prod": ["madeira", "especiarias"], "need": ["rum", "tecidos"]},
+	{"name": "Port Royal", "nation": ENG, "pos": Vector2(1043, 1040), "dir": Vector2.ZERO, "r": 700, "prod": ["rum", "acucar"], "need": ["especiarias", "madeira"]},
+	{"name": "Tortuga", "nation": PIR, "pos": Vector2(3595, -367), "dir": Vector2.ZERO, "r": 400, "prod": ["rum", "madeira"], "need": ["polvora", "especiarias"]},
+	{"name": "Petit-Goâve", "nation": FRA, "pos": Vector2(3544, 713), "dir": Vector2.ZERO, "r": 550, "prod": ["cafe", "acucar"], "need": ["polvora", "tecidos"]},
+	{"name": "Santo Domingo", "nation": ESP, "pos": Vector2(5411, 687), "dir": Vector2.ZERO, "r": 700, "prod": ["acucar", "cafe"], "need": ["tecidos", "rum"]},
+	{"name": "San Juan", "nation": ESP, "pos": Vector2(7786, 687), "dir": Vector2.ZERO, "r": 600, "prod": ["acucar", "madeira"], "need": ["especiarias", "polvora"]},
+	{"name": "Sint Eustatius", "nation": HOL, "pos": Vector2(9753, 1347), "dir": Vector2.ZERO, "r": 450, "prod": ["tecidos", "polvora"], "need": ["acucar", "tabaco"]},
+	{"name": "Fort-Royal", "nation": FRA, "pos": Vector2(10953, 3267), "dir": Vector2.ZERO, "r": 600, "prod": ["cafe", "rum"], "need": ["madeira", "tecidos"]},
+	{"name": "Bridgetown", "nation": ENG, "pos": Vector2(11865, 4267), "dir": Vector2.ZERO, "r": 550, "prod": ["acucar", "rum"], "need": ["madeira", "cafe"]},
+	{"name": "Willemstad", "nation": HOL, "pos": Vector2(6014, 4927), "dir": Vector2.ZERO, "r": 600, "prod": ["tecidos", "especiarias"], "need": ["tabaco", "madeira"]},
+	{"name": "Cartagena", "nation": ESP, "pos": Vector2(1879, 6073), "dir": Vector2.ZERO, "r": 800, "prod": ["especiarias", "tabaco"], "need": ["rum", "tecidos"]},
+	{"name": "Nova Olinda", "nation": POR, "pos": Vector2(10683, 5933), "dir": Vector2.ZERO, "r": 750, "prod": ["acucar", "tabaco"], "need": ["especiarias", "rum"]},
+	{"name": "São Jorge da Guiana", "nation": POR, "pos": Vector2(11689, 7400), "dir": Vector2.ZERO, "r": 600, "prod": ["acucar", "madeira"], "need": ["tecidos", "polvora"]},
 ]
 
 # ---------------------------------------------------------------- Estado
@@ -117,7 +117,7 @@ var port_owner: Array = []
 var port_fort_hp: Array = []
 var mission := {}
 var treasure := {}           # {"pos": Vector2, "island": int}
-var player_pos := Vector2(-1900, -600)
+var player_pos := Vector2(1043, 1200)
 var player_yaw := 0.0
 var stats := {"sunk": 0, "captured": 0, "ports": 0, "treasures": 0}
 var has_save := false
@@ -219,8 +219,10 @@ func home_port(nation: int) -> int:
 
 
 func dock_offset(port_idx: int) -> Vector2:
-	# Direção da cidade para o mar aberto (onde fica o cais).
-	return (PORTS_DEF[port_idx]["dir"] as Vector2).normalized()
+	# Direção da cidade para o mar aberto (onde fica o cais), calculada pelo mundo.
+	if World.I and World.I.port_islands.size() > port_idx:
+		return World.I.port_islands[port_idx].dir
+	return Vector2.DOWN
 
 
 func is_navy() -> bool:

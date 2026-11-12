@@ -8,3 +8,10 @@ gratuitos ou comerciais sem pedir permissão. Agradecemos aos autores:
   As paletas `colormap_*.png` são variações recoloridas pelo jogo (telhas e paredes de cada nação).
 - **Quaternius** (quaternius.com) — *Animated Men/Women Characters* e *Farm Animals Animated*
   (`assets/people`, `assets/animals/Horse.fbx`).
+
+## Mapa e terreno
+- **Natural Earth** (naturalearthdata.com) — contornos reais das costas e ilhas (domínio público),
+  convertidos por `tools/gerar_mapa.py` em `data/`.
+- **ambientCG** (ambientcg.com) — texturas de capim (Ground037) e rocha (Rock023), CC0,
+  via a demo do addon Terrain3D. Em `assets/terrain/`.
+- **Godot demo projects** (licença MIT) — textura de areia (material_testers).
