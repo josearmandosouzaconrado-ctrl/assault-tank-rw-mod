@@ -106,13 +106,13 @@ static func _fix_loops(ap: AnimationPlayer) -> void:
 
 
 const OUTFITS := [
-	{"id": "Smooth_Male_Suit", "name": "Casaca de capitão", "price": 0},
-	{"id": "Smooth_Male_LongSleeve", "name": "Camisa de marinheiro", "price": 250},
-	{"id": "Smooth_Male_Shirt", "name": "Colete de bucaneiro", "price": 400},
-	{"id": "Smooth_Male_Casual", "name": "Roupa de viagem", "price": 250},
-	{"id": "Smooth_Female_Alternative", "name": "Jaqueta de corsária", "price": 450},
-	{"id": "Smooth_Female_Casual", "name": "Roupa de marinheira", "price": 250},
-	{"id": "Smooth_Female_Dress", "name": "Vestido de capitã", "price": 500},
+	{"id": "Smooth_Male_Suit", "name": "Casaca de capitão (justaucorps)", "price": 0, "style": {"skirt": true, "facing": true, "cravat": true, "sash": true}},
+	{"id": "Smooth_Male_LongSleeve", "name": "Camisa e calções de marinheiro", "price": 250, "style": {"slops": true, "belt": true}},
+	{"id": "Smooth_Male_Shirt", "name": "Colete de bucaneiro", "price": 400, "style": {"slops": true, "belts": true, "belt": true}},
+	{"id": "Smooth_Male_Casual", "name": "Casaca de viagem", "price": 250, "style": {"skirt": true, "belt": true}},
+	{"id": "Smooth_Female_Alternative", "name": "Casaca de corsária (como Anne Bonny)", "price": 450, "style": {"skirt": true, "facing": true, "belts": true, "belt": true}},
+	{"id": "Smooth_Female_Casual", "name": "Corpete e saia longa", "price": 250, "style": {"petticoat": true, "belt": true}},
+	{"id": "Smooth_Female_Dress", "name": "Vestido de capitã", "price": 500, "style": {"apron": false}},
 ]
 const COAT_COLORS := [
 	["Preto", Color(0.09, 0.08, 0.08)], ["Vermelho", Color(0.55, 0.08, 0.07)], ["Azul-marinho", Color(0.07, 0.12, 0.32)],
@@ -122,6 +122,7 @@ const COAT_COLORS := [
 const HATS := [
 	{"name": "Sem chapéu", "price": 0}, {"name": "Tricórnio", "price": 200}, {"name": "Lenço pirata", "price": 80},
 	{"name": "Chapéu de abas largas", "price": 150}, {"name": "Bicórnio de almirante", "price": 600},
+	{"name": "Touca de linho", "price": 40},
 ]
 const MUSKETS := [
 	{"name": "Mosquete comum", "price": 0, "reload": 2.6, "acc": 0.72, "range": 45.0},
@@ -135,6 +136,7 @@ const CLOTH := [Color(0.75, 0.7, 0.58), Color(0.45, 0.3, 0.2), Color(0.3, 0.35, 
 ## Peças de roupa de cada modelo que recebem a cor principal (casaca/vestido) e a secundária (calça).
 const COAT_SLOTS := ["Shirt", "Jacket", "LightJacket", "Dress"]
 const PANTS_SLOTS := ["Pants"]
+const STOCKING := Color(0.86, 0.84, 0.78)
 
 
 ## Pessoa animada. kind: "homem", "mulher", "oficial" ou "capitao".
@@ -163,6 +165,23 @@ static func person(kind: String, rng: RandomNumberGenerator, opts := {}) -> Dict
 		colors["hair"] = HAIR[rng.randi() % HAIR.size()]
 	colors.merge(opts, true)
 	_dress(model, colors)
+	if (kind == "homem" or kind == "mulher") and not opts.has("style") and not opts.has("file"):
+		var st := {}
+		if file.contains("Female"):
+			if file != "Smooth_Female_Dress":
+				st["petticoat"] = CLOTH[rng.randi() % CLOTH.size()].darkened(0.1)
+			st["apron"] = rng.randf() < 0.5
+			if file == "Smooth_Female_Dress" and st["apron"]:
+				st["petticoat"] = colors["coat"]
+			if rng.randf() < 0.6:
+				opts["hat"] = 5
+		else:
+			if rng.randf() < 0.65:
+				st["skirt"] = colors["coat"]
+			st["belt"] = Color(0.18, 0.12, 0.07)
+			if rng.randf() < 0.55:
+				opts["hat"] = [1, 3, 3][rng.randi() % 3]
+		opts["style"] = st
 	var ap: AnimationPlayer = model.find_children("*", "AnimationPlayer", true, false)[0]
 	_fix_loops(ap)
 	var pre := "HumanArmature|Female_" if file.contains("Female") else "HumanArmature|Man_"
@@ -170,8 +189,14 @@ static func person(kind: String, rng: RandomNumberGenerator, opts := {}) -> Dict
 	var hat := int(opts.get("hat", 0))
 	if hat > 0:
 		attach(p, "Head", hat_mesh(hat), Vector3(0, 0.155, 0.01), sc)
+	if opts.has("style"):
+		Attire.apply(p, opts["style"])
 	if opts.get("musket", false):
-		attach(p, "MiddleHand.R", musket_mesh(), Vector3(0, 0.02, 0), sc, Basis(Vector3(1, 0, 0), PI))
+		var sk: Skeleton3D = model.find_children("*", "Skeleton3D", true, false)[0]
+		var rig := MusketRig.new()
+		sk.add_child(rig)
+		rig.setup(root, sk)
+		p["rig"] = rig
 	play(p, "Idle")
 	ap.seek(rng.randf() * 2.0, true)
 	return p
@@ -198,6 +223,12 @@ static func _dress(model: Node3D, colors: Dictionary) -> void:
 				c = colors["hair"]
 			elif nm == "TieTexture" and colors.has("tie"):
 				c = colors["tie"]
+			elif nm == "Socks":
+				c = colors.get("socks", STOCKING)
+			elif nm == "Shoes":
+				c = Color(0.1, 0.07, 0.05)
+			elif nm == "Shirt2" and colors.has("coat"):
+				c = (colors["coat"] as Color).lightened(0.25)
 			if c != null:
 				mi.set_surface_override_material(s, _tinted(mat, c))
 
@@ -249,6 +280,12 @@ static func hat_mesh(kind: int) -> Mesh:
 			_brim(st, func(a: float) -> float: return 0.25, 0.02, Color(0.3, 0.2, 0.12), Color(0.25, 0.16, 0.1))
 			ShipBuilder._tube(st, Vector3(0, 0.0, 0), Vector3(0, 0.13, 0), 0.12, 0.105, Color(0.3, 0.2, 0.12), 10)
 			ShipBuilder._tube(st, Vector3(0, 0.0, 0), Vector3(0, 0.03, 0), 0.122, 0.122, Color(0.12, 0.08, 0.05), 10)
+		5:  # touca de linho (coif)
+			Island._sphere(st, Vector3(0, 0.02, 0.015), Vector3(0.125, 0.1, 0.13), Color(0.94, 0.93, 0.88), 9, 5)
+			ShipBuilder._tube(st, Vector3(0, -0.02, -0.11), Vector3(0, 0.06, -0.12), 0.02, 0.02, Color(0.94, 0.93, 0.88), 6)
+		6:  # tricórnio de soldado (galão branco)
+			_brim(st, func(a: float) -> float: return 0.2 + 0.05 * cos(3.0 * a), 0.07, black, Color(0.93, 0.92, 0.88))
+			ShipBuilder._tube(st, Vector3(0, 0.0, 0), Vector3(0, 0.11, 0), 0.115, 0.1, black, 10)
 		4:  # bicórnio: meia-lua atravessada, com galão dourado
 			for side in [-1.0, 1.0]:
 				var q := [Vector3(-0.24, 0.0, 0.0), Vector3(0.24, 0.0, 0.0), Vector3(0.0, 0.17, side * 0.02)]
@@ -318,23 +355,50 @@ static func musket_mesh() -> Mesh:
 ## O capitão, com a roupa, a cor, o chapéu e a arma escolhidos pelo jogador.
 static func captain(rng: RandomNumberGenerator, with_musket := true) -> Dictionary:
 	var o: Dictionary = OUTFITS[clampi(Game.outfit, 0, OUTFITS.size() - 1)]
-	var opts := {"file": o["id"], "coat": COAT_COLORS[clampi(Game.coat_color, 0, COAT_COLORS.size() - 1)][1],
-		"hat": Game.hat, "musket": with_musket}
+	var coat: Color = COAT_COLORS[clampi(Game.coat_color, 0, COAT_COLORS.size() - 1)][1]
+	var st := {}
+	var os: Dictionary = o["style"]
+	if os.get("skirt", false):
+		st["skirt"] = coat
+	if os.get("facing", false):
+		st["facing"] = Color(0.85, 0.68, 0.25) if coat.v < 0.5 else Color(0.1, 0.1, 0.12)
+	if os.get("cravat", false):
+		st["cravat"] = true
+	if os.get("sash", false):
+		st["sash"] = Color(0.6, 0.08, 0.12)
+	if os.get("slops", false):
+		st["slops"] = Color(0.88, 0.86, 0.8)
+	if os.get("belts", false):
+		st["belts"] = true
+	if os.get("belt", false):
+		st["belt"] = Color(0.2, 0.13, 0.07)
+	if os.get("petticoat", false):
+		st["petticoat"] = coat.darkened(0.2)
+	var opts := {"file": o["id"], "coat": coat, "pants": Color(0.18, 0.16, 0.14), "hat": Game.hat, "musket": with_musket, "style": st}
 	return person("capitao", rng, opts)
 
 
-## Uniforme de soldado/guarda de uma nação.
-static func soldier(nation: int, rng: RandomNumberGenerator) -> Dictionary:
-	if nation == Game.PIR:
-		return person("homem", rng, {"file": PEOPLE_M[rng.randi() % PEOPLE_M.size()], "hat": 2 if rng.randf() < 0.6 else 3, "musket": true,
-			"coat": CLOTH[rng.randi() % CLOTH.size()], "pants": Color(0.3, 0.25, 0.2), "skin": SKIN_TONES[rng.randi() % SKIN_TONES.size()]})
-	var coat: Color = Game.NATIONS[nation]["color"].darkened(0.15)
-	if nation == Game.FRA:
-		coat = Color(0.82, 0.8, 0.74)
-	elif nation == Game.ESP:
-		coat = Color(0.8, 0.77, 0.7)
-	return person("oficial", rng, {"coat": coat, "pants": Color(0.85, 0.82, 0.74), "tie": Color(0.9, 0.9, 0.88),
-		"skin": SKIN_TONES[rng.randi() % SKIN_TONES.size()], "hat": 1, "musket": true})
+## Uniforme de soldado/guarda de uma nação (início do século XVIII): casaca comprida com vistas coloridas,
+## colete, calção, talabarte, tricórnio com galão e mosquete. Piratas e marujos usam camisa, colete e calções largos.
+static func soldier(nation: int, rng: RandomNumberGenerator, officer := false) -> Dictionary:
+	if nation == Game.PIR or not Attire.UNIFORMS.has(nation):
+		var shirt: Color = [Color(0.9, 0.88, 0.82), Color(0.75, 0.72, 0.65), Color(0.55, 0.15, 0.12), Color(0.3, 0.32, 0.4)][rng.randi() % 4]
+		return person("homem", rng, {"file": ["Smooth_Male_Shirt", "Smooth_Male_LongSleeve"][rng.randi() % 2], "hat": [2, 3, 0][rng.randi() % 3],
+			"musket": true, "coat": shirt, "pants": Color(0.3, 0.25, 0.2), "skin": SKIN_TONES[rng.randi() % SKIN_TONES.size()],
+			"style": {"slops": Color(0.86, 0.84, 0.78) if rng.randf() < 0.6 else Color(0.35, 0.3, 0.25), "belts": true, "belt": Color(0.2, 0.13, 0.07)}})
+	var u: Dictionary = Attire.UNIFORMS[nation]
+	var st := {"skirt": u["coat"], "facing": u["facing"], "belts": not officer, "belt": Attire.BUFF if not officer else Color(0.15, 0.1, 0.06)}
+	if officer:
+		st["sash"] = Color(0.6, 0.08, 0.12) if nation != Game.FRA else Color(0.85, 0.85, 0.85)
+		st["cravat"] = true
+	return person("oficial", rng, {"coat": u["coat"], "pants": u["breeches"], "tie": u["waist"],
+		"skin": SKIN_TONES[rng.randi() % SKIN_TONES.size()], "hat": 1 if officer else 6, "musket": not officer, "style": st})
+
+
+## Posição do mosquete (MusketRig.CARRY, ORDER, AIM ou NONE).
+static func musket_pose(p: Dictionary, mode: int) -> void:
+	if p.has("rig") and is_instance_valid(p["rig"]) and p["rig"].mode != mode:
+		p["rig"].set_mode(mode)
 
 
 static func play(p: Dictionary, anim: String, speed := 1.0) -> void:

@@ -31,6 +31,30 @@ Resumo do que os principais jogos do gênero fazem e de como isso guia o *Mares 
 - Havana colonial: mistura de tradição mourisca e barroco adaptada ao trópico — pátios, arcadas (*portales*),
   casas de dois andares com lojas embaixo e moradia em cima.
 
+## Como os soldados seguravam o mosquete (manuais de armas do século XVIII)
+- **Ombro-armas** ("shoulder your firelock"): mosquete apoiado no ombro **esquerdo**, coronha segura pela
+  **mão esquerda**, cano para cima; a mão direita fica livre ao lado do corpo.
+- **Descansar** ("order your firelock"): mosquete em pé, ao lado do pé direito, coronha no chão, seguro pela
+  mão direita.
+- **Apontar/fogo** ("present"): coronha no ombro direito, mão direita no punho junto ao gatilho e mão
+  esquerda sob o cano.
+- No jogo: os soldados marcham em ombro-armas, ficam de guarda em descansar e apontam para atirar; os braços
+  seguram a arma por cinemática inversa (scripts/musket_rig.gd).
+
+## Roupas da época (c. 1700–1720)
+- Infantaria: casaca comprida até o joelho (justaucorps), com punhos largos virados e forro nas "vistas"
+  (cor do regimento), colete, calção, meias, sapatos, talabarte e tricórnio com galão.
+  - Britânicos: casaca vermelha (vistas variadas, como azul nos regimentos reais).
+  - Franceses: casaca cinza-esbranquiçada (gris-blanc) com vistas azuis, vermelhas, etc.
+  - Espanhóis (Filipe V, estilo francês): casaca branca com vistas coloridas.
+  - Holandeses: casacas azuis ou cinza; usamos azul com vistas vermelhas.
+  - Portugueses: um guia de pintura (baseado em Condray, 1992) cita verde com branco entre 1640 e 1728 —
+    fonte não confirmada; usamos verde com vistas brancas.
+- Marujos e piratas: camisas de linho, coletes, calções largos ("slops"), lenços e gorros; não usavam roupas
+  muito diferentes dos outros marinheiros (tapa-olho e brinco eram raros).
+- Capitães e oficiais: casaca fina, gravata branca, faixa na cintura, tricórnio com galão dourado.
+- Mulheres: corpete, saia comprida (anágua), avental e touca de linho.
+
 ## O que já aplicamos
 - Velas em níveis pelo joystick, navio com inércia, câmera de perseguição estável.
 - Bordadas com mira assistida, três munições (redonda, corrente, metralha), abordagem com saque/captura.
@@ -44,6 +68,16 @@ Resumo do que os principais jogos do gênero fazem e de como isso guia o *Mares 
 3. Captura de forte em duas fases com comandante e moral da guarnição.
 4. Canções de marujos (*shanties*) tocadas ao navegar.
 5. Mergulho/naufrágios e caça (baleias, tubarões) como atividades secundárias.
+
+## Fontes (roupas e manual de armas)
+- https://www.battlefields.org/learn/primary-sources/manual-exercise-ordered-his-majesty-1764
+- https://sites.google.com/view/13thcontlregt/members-resources/von-stuben-manual-of-arms
+- https://www.nps.gov/paal/planyourvisit/musket-drill.htm
+- https://en.wikipedia.org/wiki/Facing_colour
+- https://balagan.info/painting-guide-for-the-war-of-spanish-succession-in-the-peninsular
+- https://www.worldhistory.org/article/1839/pirate-clothing-in-the-golden-age-of-piracy/
+- https://www.historyhit.com/what-did-pirates-really-wear/
+- https://reconstructinghistory.com/blogs/blog/getting-dressed-guide-for-pirates-and-seamen-1680s-1720s
 
 ## Fontes
 - https://primagames.com/tips/assassins-creed-4-black-flag-naval-combat-guide

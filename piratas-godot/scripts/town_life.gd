@@ -227,6 +227,7 @@ func kill(e: Dictionary) -> void:
 	e["alive"] = false
 	var p: Dictionary = e["p"]
 	p["cur"] = ""
+	Assets.musket_pose(p, MusketRig.NONE)
 	Assets.play(p, "Death")
 	Sfx.play_at("hit", p["root"].global_position, -4.0, 1.4)
 	if guards_alive() == 0 and hostile():
@@ -316,10 +317,12 @@ func _guard(e: Dictionary, p: Dictionary, root: Node3D, pos: Vector2, lp: Vector
 			pos += back.normalized() * 2.0 * delta
 			root.global_position = Vector3(pos.x, w.terrain_height(pos.x, pos.y), pos.y)
 			root.rotation.y = lerp_angle(root.rotation.y, atan2(-back.x, -back.y), delta * 6.0)
+			Assets.musket_pose(p, MusketRig.CARRY)
 			Assets.play(p, "Walk")
 			return
 		if dist < 15.0:
 			root.rotation.y = lerp_angle(root.rotation.y, atan2(-to.x, -to.y), delta * 3.0)
+		Assets.musket_pose(p, MusketRig.ORDER)
 		Assets.play(p, "Idle")
 		return
 	root.rotation.y = lerp_angle(root.rotation.y, atan2(-to.x, -to.y), delta * 6.0)
@@ -329,16 +332,18 @@ func _guard(e: Dictionary, p: Dictionary, root: Node3D, pos: Vector2, lp: Vector
 		if not w.building_blocked(pos.x + stp.x, pos.y + stp.y):
 			pos += stp
 			root.global_position = Vector3(pos.x, w.terrain_height(pos.x, pos.y), pos.y)
-		if not (p["cur"].ends_with("Punch") and p["ap"].is_playing()):
-			Assets.play(p, "Run")
-	elif not (p["cur"].ends_with("Punch") and p["ap"].is_playing()):
+		Assets.musket_pose(p, MusketRig.CARRY)
+		Assets.play(p, "Run")
+	else:
+		# parado a curta distância: em posição de apontar
+		Assets.musket_pose(p, MusketRig.AIM)
 		Assets.play(p, "Idle")
 	if e["cd"] <= 0.0 and dist < 45.0:
 		e["cd"] = _rng.randf_range(2.6, 4.2)
-		p["cur"] = ""
-		Assets.play(p, "Punch", 1.4)
+		if p.has("rig"):
+			p["rig"].fire_kick()
 		var dir3 := Vector3(to.x, 0, to.y).normalized()
-		var muzzle := root.global_position + Vector3(0, 1.3, 0) + dir3 * 0.9
+		var muzzle := root.global_position + Vector3(0, 1.45, 0) + dir3 * 1.3
 		Effects.I.emit("flash", muzzle, dir3)
 		Effects.I.emit("smoke", muzzle, dir3)
 		Sfx.play_at("cannon", muzzle, -10.0, 2.6)

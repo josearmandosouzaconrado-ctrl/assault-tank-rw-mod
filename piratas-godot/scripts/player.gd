@@ -236,18 +236,22 @@ func _update_followers(delta: float, leader: Vector3, lyaw: float) -> void:
 				var gp: Vector3 = g["p"]["root"].global_position
 				var to := gp - root.global_position
 				root.rotation.y = atan2(-to.x, -to.z)
-				Assets.play(p, "Punch", 1.4)
-				_musket_fx(root.global_position + Vector3(0, 1.3, 0), to.normalized())
+				p["aim_t"] = 1.0
+				if p.has("rig"):
+					p["rig"].fire_kick()
+				_musket_fx(root.global_position + Vector3(0, 1.45, 0), to.normalized())
 				if _rng.randf() < 0.4:
 					town.kill(g)
 				aimed = true
-		if aimed:
-			pass
+		p["aim_t"] = maxf(0.0, float(p.get("aim_t", 0.0)) - delta)
+		if p["aim_t"] > 0.0:
+			Assets.musket_pose(p, MusketRig.AIM)
+			Assets.play(p, "Idle")
 		elif moving:
+			Assets.musket_pose(p, MusketRig.CARRY)
 			Assets.play(p, "Run" if d.length() > 4.0 else "Walk")
-		elif p["cur"].ends_with("Punch") and p["ap"].is_playing():
-			pass
 		else:
+			Assets.musket_pose(p, MusketRig.ORDER)
 			Assets.play(p, "Idle")
 
 
@@ -475,9 +479,12 @@ func shoot_musket() -> void:
 		dir = (tp - foot_pos).normalized()
 	avatar_yaw = atan2(-dir.x, -dir.z)
 	avatar["root"].rotation.y = avatar_yaw
-	Assets.play(avatar, "Punch", 1.5)
-	_shoot_anim = 0.6
-	_musket_fx(foot_pos + Vector3(0, 1.35, 0), dir)
+	Assets.play(avatar, "Idle")
+	Assets.musket_pose(avatar, MusketRig.AIM)
+	if avatar.has("rig"):
+		avatar["rig"].fire_kick()
+	_shoot_anim = 0.9
+	_musket_fx(foot_pos + Vector3(0, 1.45, 0), dir)
 	if target.is_empty():
 		return
 	town.provoke()
@@ -526,6 +533,7 @@ func _foot(delta: float) -> void:
 			Sfx.play("dig")
 			if not avatar.is_empty():
 				avatar["cur"] = ""
+				Assets.musket_pose(avatar, MusketRig.NONE)
 				Assets.play(avatar, "Punch", 1.3)
 		if digging <= 0.0:
 			_finish_dig()
@@ -550,18 +558,31 @@ func _foot(delta: float) -> void:
 	if not avatar.is_empty():
 		var root: Node3D = avatar["root"]
 		root.global_position = foot_pos
+		if _shoot_anim > 0.0:
+			Assets.musket_pose(avatar, MusketRig.AIM)
+		elif digging <= 0.0:
+			Assets.musket_pose(avatar, MusketRig.CARRY)
 		if wdir.length() > 0.05:
 			avatar_yaw = lerp_angle(avatar_yaw, atan2(-wdir.x, -wdir.y), 1.0 - exp(-delta * 10.0))
 			if _shoot_anim <= 0.0:
 				Assets.play(avatar, "Run" if spd > 3.0 else "Walk", 1.0 if spd > 3.0 else 1.1)
-		elif _shoot_anim <= 0.0 and digging <= 0.0:
+		elif digging <= 0.0:
 			Assets.play(avatar, "Idle")
 		root.rotation.y = avatar_yaw
 	# câmera de terceira pessoa por cima do ombro
 	var target := foot_pos + Vector3(0, 1.55, 0)
 	var dirc := Vector3(sin(foot_yaw) * cos(foot_pitch), -sin(foot_pitch), cos(foot_yaw) * cos(foot_pitch))
 	var side := Vector3(cos(foot_yaw), 0, -sin(foot_yaw)) * 0.55
-	var want := target + dirc * 4.2 * zoom + side
+	# a câmera não entra nas casas: aproxima-se se houver parede atrás
+	var dist := 4.2 * zoom
+	var t := 0.8
+	while t < dist:
+		var q := target + dirc * t + side * (t / dist)
+		if w.building_blocked(q.x, q.z) and q.y < w.terrain_height(q.x, q.z) + 9.0:
+			dist = maxf(0.9, t - 0.5)
+			break
+		t += 0.35
+	var want := target + dirc * dist + side * minf(1.0, dist / 4.2)
 	want.y = maxf(want.y, maxf(w.terrain_height(want.x, want.z), Ocean.height_at(want.x, want.z)) + 0.6)
 	cam.global_position = want
 	cam.look_at(target + side * 0.6 - dirc * 2.0, Vector3.UP)

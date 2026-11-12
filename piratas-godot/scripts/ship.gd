@@ -127,13 +127,16 @@ func _add_crew() -> void:
 		var x := side * ShipBuilder.half_width(t, beam) * rr.randf_range(0.25, 0.55)
 		var pc: Dictionary
 		if nation == Game.PIR or rr.randf() < 0.6:
-			pc = Assets.person("homem", rr, {"hat": [0, 2, 2, 3][rr.randi() % 4]})
+			pc = Assets.person("homem", rr, {"file": ["Smooth_Male_Shirt", "Smooth_Male_LongSleeve", "Smooth_Male_Casual"][rr.randi() % 3],
+				"hat": [0, 2, 2, 3][rr.randi() % 4], "coat": [Color(0.9, 0.88, 0.82), Color(0.6, 0.55, 0.45), Color(0.3, 0.35, 0.5)][rr.randi() % 3],
+				"style": {"slops": Color(0.86, 0.84, 0.78), "belt": Color(0.2, 0.13, 0.07)}})
 		else:
 			pc = Assets.soldier(nation, rr)
 		model["root"].add_child(pc["root"])
 		pc["root"].position = Vector3(x, ShipBuilder.deck_height(t, def), ShipBuilder.t_to_z(t, length))
 		pc["root"].rotation.y = PI * 0.5 * side + rr.randf_range(-0.6, 0.6)
 		Assets.play(pc, ["Idle", "Idle", "Clapping"][rr.randi() % 3])
+		Assets.musket_pose(pc, MusketRig.ORDER)
 		crew_nodes.append(pc)
 
 

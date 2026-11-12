@@ -9,7 +9,7 @@ as casas, o forte, o cais e a vegetação usam modelos 3D gratuitos (CC0) da **K
 
 ## Baixar o APK
 
-APK pronto: [`apk/MaresDeFortuna-v1.7.apk`](../apk/MaresDeFortuna-v1.7.apk) (Android 7 ou superior).
+APK pronto: [`apk/MaresDeFortuna-v1.8.apk`](../apk/MaresDeFortuna-v1.8.apk) (Android 7 ou superior).
 
 Cada push na pasta `piratas-godot/` gera um APK pelo GitHub Actions (workflow *Mares de Fortuna (Godot) - APK*):
 
@@ -45,6 +45,7 @@ Como pirata, sua infâmia cresce (Marujo Rebelde → Rei dos Piratas) e caçador
 - **Romance**: em cada cidade há uma pessoa especial. Converse, dê presentes, convide para jantar e, com afeto máximo, peça em casamento.
 - **Combater** como no Black Flag: bordadas pelos costados (três munições: redonda, corrente e metralha), **canhões de proa** com corrente que freia o inimigo, **morteiros** de longe (o círculo vermelho mostra onde as bombas caem; os inimigos grandes também usam), **segurar-se** para receber menos dano e **abalroar** (melhor com o esporão de ferro).
 - **Combate a pé**: o capitão anda em terceira pessoa com mosquete. Em cidades inimigas (ou se você atirar numa cidade amiga) os guardas atacam; suas tropas atiram junto. Com o forte silenciado e todos os guardas derrubados, dá para **tomar a cidade** a pé.
+- **Uniformes e roupas da época**: casacas compridas com vistas coloridas por nação (vermelho britânico, branco espanhol, cinza-esbranquiçado francês, azul holandês, verde português), talabarte e tricórnio; marujos de calções largos; mulheres de saia comprida, avental e touca. Os soldados seguram o mosquete como nos manuais de armas: ombro-armas, descansar e apontar.
 - **Alfaiate e armeiro**: roupas, cor da casaca, chapéus (tricórnio, lenço, abas largas, bicórnio) e armas (mosquete comum, pistolas, mosquete de precisão).
 - **Seu próprio reino**: com 2 cidades conquistadas e 15.000 moedas, funde um reino com nome e bandeira próprios; as cidades rendem impostos diários.
 - **Guerras entre nações**: de tempos em tempos uma nação ataca um porto inimigo. Perto dele, você vê a batalha naval e pode ajudar a atacar ou a defender; os portos mudam de dono.
@@ -106,6 +107,8 @@ scripts/port_ui.gd      mercado, estaleiro, taverna, missões e governo
 scripts/map_ui.gd       mapa do arquipélago
 scripts/menu_ui.gd      menu, escolha de carreira, opções e pausa
 scripts/audio.gd        efeitos sonoros e música sintetizados
+scripts/attire.gd       roupas da época presas aos ossos (casaca, vistas, talabarte, saia, calções)
+scripts/musket_rig.gd   posições do mosquete com cinemática inversa nos braços
 scripts/assets.gd       carrega os modelos 3D, animações e junta peças numa malha só
 assets/                 modelos 3D CC0 (Kenney e Quaternius) — ver assets/CREDITOS.md
 shaders/                oceano, céu, velas, bandeiras, madeira e terreno
