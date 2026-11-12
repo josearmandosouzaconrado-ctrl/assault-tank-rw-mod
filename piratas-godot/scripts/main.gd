@@ -274,12 +274,8 @@ func _romance(i: int) -> void:
 	var mood := "%s olha para você com curiosidade." % nm
 	if Game.spouse == i:
 		mood = "%s corre para abraçar você: \"Você voltou!\"" % nm
-		opts.append(["Passar a noite em casa (descansar até de manhã)", func():
-			Game.time_of_day = 0.27
-			Game.day += 1
-			Game.morale = minf(100.0, Game.morale + 25.0)
-			Game.notify("Uma noite tranquila em casa. A tripulação também descansou (+moral).", Color(1, 0.8, 0.85))
-			world._update_environment(true)])
+		opts.append(["Beijar", func(): _love_scene(i, false)])
+		opts.append(["Passar a noite em casa (descansar até de manhã)", func(): _love_scene(i, true)])
 		opts.append(["Até logo", Callable()])
 		hud.show_dialog(nm, mood, opts)
 		return
@@ -313,6 +309,14 @@ func _romance(i: int) -> void:
 		Game.add_affection(i, 9)
 		Game.morale = minf(100.0, Game.morale + 4.0)
 		Game.notify("Um jantar à luz de velas, com música de rabeca. (afeto %d/100)" % Game.affection(i), Color(1, 0.8, 0.85))])
+	if a >= 50:
+		opts.append(["Beijar", func():
+			if int(Game.romance_day.get(str(i) + "b", -1)) != Game.day:
+				Game.romance_day[str(i) + "b"] = Game.day
+				Game.add_affection(i, 5)
+			_love_scene(i, false)])
+	if a >= 80:
+		opts.append(["Passar a noite juntos", func(): _love_scene(i, true)])
 	if a >= 100 and Game.spouse < 0:
 		opts.append(["Pedir em casamento", func():
 			Game.spouse = i
@@ -322,6 +326,115 @@ func _romance(i: int) -> void:
 			Game.save_game()])
 	opts.append(["Até logo", Callable()])
 	hud.show_dialog(nm, mood + "  (afeto %d/100)" % a, opts)
+
+
+## Cena romântica: os dois se aproximam e se beijam, com a câmera de perto e corações subindo.
+## Na noite juntos, a tela escurece (como nos jogos do gênero) e vocês acordam na manhã seguinte.
+func _love_scene(i: int, night: bool) -> void:
+	hud.close_dialog()
+	if ctl.town == null or ctl.town.special.is_empty() or ctl.avatar.is_empty():
+		return
+	var nm := Game.romance_name(i)
+	var sp: Dictionary = ctl.town.special["p"]
+	var sroot: Node3D = sp["root"]
+	var spos := sroot.global_position
+	var to_cam := (ctl.foot_pos - spos)
+	to_cam.y = 0.0
+	if to_cam.length() < 0.1:
+		to_cam = Vector3(0, 0, 1)
+	var fwd := to_cam.normalized()
+	var side := Vector3(-fwd.z, 0, fwd.x)
+	# frente a frente, bem perto
+	ctl.foot_pos = spos + fwd * 0.5
+	ctl.avatar_yaw = atan2(fwd.x, fwd.z)
+	sroot.rotation.y = atan2(-fwd.x, -fwd.z)
+	Assets.play(sp, "Idle")
+	Assets.musket_pose(ctl.avatar, MusketRig.NONE)
+	if ctl.avatar.has("sword") and is_instance_valid(ctl.avatar["sword"]):
+		ctl.avatar["sword"].visible = false
+	hud.modal = true
+	hud.root.visible = false
+	ctl.cutscene = true
+	ctl.move_vec = Vector2.ZERO
+	# os dois se inclinam um para o outro
+	var m1: Node3D = ctl.avatar["model"]
+	var m2: Node3D = sp["model"]
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(m1, "rotation:x", 0.12, 1.2)
+	tw.tween_property(m2, "rotation:x", 0.1, 1.2)
+	# câmera de cinema ao lado do casal
+	var cam := Camera3D.new()
+	cam.fov = 40.0
+	world.add_child(cam)
+	var mid := spos + fwd * 0.25 + Vector3(0, 1.55, 0)
+	cam.global_position = mid + side * 2.4 + Vector3(0, 0.15, 0) + fwd * 0.3
+	cam.look_at(mid, Vector3.UP)
+	cam.current = true
+	Sfx.play("bell", -14.0)
+	for k in 6:
+		var h := Label3D.new()
+		h.text = "♥"
+		h.font_size = 96
+		h.pixel_size = 0.002
+		h.modulate = Color(1, 0.25, 0.4)
+		h.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		h.no_depth_test = true
+		world.add_child(h)
+		h.global_position = mid + Vector3(randf_range(-0.25, 0.25), 0.2, randf_range(-0.25, 0.25))
+		var ht := create_tween()
+		ht.tween_interval(0.6 + k * 0.35)
+		ht.tween_property(h, "global_position", h.global_position + Vector3(0, 0.9, 0), 1.6)
+		ht.parallel().tween_property(h, "modulate:a", 0.0, 1.6)
+		ht.tween_callback(h.queue_free)
+	await get_tree().create_timer(3.4).timeout
+	if night:
+		# a tela escurece... e já é de manhã
+		var layer := CanvasLayer.new()
+		layer.layer = 50
+		add_child(layer)
+		var black := ColorRect.new()
+		black.color = Color(0, 0, 0, 0)
+		black.set_anchors_preset(Control.PRESET_FULL_RECT)
+		layer.add_child(black)
+		var lbl := Label.new()
+		lbl.text = "Mais tarde, naquela noite..."
+		lbl.set_anchors_preset(Control.PRESET_FULL_RECT)
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		lbl.add_theme_font_size_override("font_size", 30)
+		lbl.modulate = Color(1, 0.9, 0.8, 0)
+		layer.add_child(lbl)
+		var ft := create_tween()
+		ft.tween_property(black, "color:a", 1.0, 1.2)
+		ft.tween_property(lbl, "modulate:a", 1.0, 0.8)
+		await ft.finished
+		await get_tree().create_timer(1.8).timeout
+		Game.time_of_day = 0.27
+		Game.day += 1
+		Game.morale = minf(100.0, Game.morale + 25.0)
+		Game.add_affection(i, 8)
+		ctl.hp = 100.0
+		world._update_environment(true)
+		lbl.text = "Ao amanhecer, ao lado de %s." % nm
+		await get_tree().create_timer(1.6).timeout
+		var bt := create_tween()
+		bt.tween_property(lbl, "modulate:a", 0.0, 0.6)
+		bt.tween_property(black, "color:a", 0.0, 1.2)
+		await bt.finished
+		layer.queue_free()
+		Game.notify("Uma noite inesquecível com %s. Você e a tripulação descansaram (+moral)." % nm, Color(1, 0.8, 0.85))
+	else:
+		Game.notify("%s retribui o beijo e sorri. (afeto %d/100)" % [nm, Game.affection(i)], Color(1, 0.8, 0.85))
+	var back := create_tween().set_parallel(true)
+	back.tween_property(m1, "rotation:x", 0.0, 0.6)
+	back.tween_property(m2, "rotation:x", 0.0, 0.6)
+	cam.queue_free()
+	ctl.cam.current = true
+	ctl.cutscene = false
+	hud.root.visible = true
+	if ctl.avatar.has("sword") and is_instance_valid(ctl.avatar["sword"]):
+		ctl.avatar["sword"].visible = true
+	hud.modal = false
 
 
 ## Viagem rápida até um porto amigo (como no Black Flag): o tempo passa conforme a distância.

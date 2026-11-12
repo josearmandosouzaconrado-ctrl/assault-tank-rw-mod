@@ -43,6 +43,7 @@ var _hurt_t := 0.0
 var musket_cd := 0.0
 var _shoot_anim := 0.0
 var _slash_t := 0.0
+var cutscene := false
 var hud_ref: Node
 var board: Boarding          # luta de abordagem em andamento
 var _board_prev := Mode.THIRD
@@ -620,7 +621,9 @@ func _foot(delta: float) -> void:
 	if not avatar.is_empty():
 		var root: Node3D = avatar["root"]
 		root.global_position = foot_pos
-		if _shoot_anim > 0.0:
+		if cutscene:
+			Assets.musket_pose(avatar, MusketRig.NONE)
+		elif _shoot_anim > 0.0:
 			Assets.musket_pose(avatar, MusketRig.AIM)
 		elif digging <= 0.0:
 			Assets.musket_pose(avatar, MusketRig.CARRY)

@@ -158,12 +158,19 @@ func setup(ps: PortSite) -> void:
 	var w := World.I
 	var n_people: int = [6, 10, 14][Game.quality]
 	for i in n_people:
-		var p := Assets.person("mulher" if _rng.randf() < 0.45 else "homem", _rng)
+		var role := ""
+		var r := _rng.randf()
+		if r < 0.12:
+			role = "dama"
+		elif r < 0.24:
+			role = "cavalheiro"
+		var p := Assets.townsfolk(role, _rng)
 		var start := _random_spot()
 		add_child(p["root"])
-		p["root"].global_position = Vector3(start.x, w.terrain_height(start.x, start.y), start.y)
-		people.append({"p": p, "target": _random_spot(), "wait": _rng.randf() * 3.0, "speed": _rng.randf_range(1.1, 1.5),
-			"kind": "morador", "phase": 0.0, "name": "Morador"})
+		p["root"].global_position = Vector3(start.x, w.walk_height(start.x, start.y), start.y)
+		people.append({"p": p, "target": _random_spot(), "wait": _rng.randf() * 3.0, "speed": _rng.randf_range(1.1, 1.5) * (0.8 if role != "" else 1.0),
+			"kind": "morador", "phase": 0.0, "name": "Morador", "walk": "Formal" if role != "" else "Walk"})
+	_add_roles(ps)
 	# guardas (oficiais) perto da praça e do forte
 	var tc := Vector2(ps.town_center.x, ps.town_center.z)
 	var fp := Vector2(ps.fort_pos.x, ps.fort_pos.z)
@@ -175,7 +182,7 @@ func setup(ps: PortSite) -> void:
 		var g := Assets.soldier(owner, _rng)
 		add_child(g["root"])
 		var spot: Vector2 = tc.lerp(fp, 0.25 + (i % 3) * 0.2) + Vector2(_rng.randf_range(-9, 9), _rng.randf_range(-9, 9))
-		g["root"].global_position = Vector3(spot.x, w.terrain_height(spot.x, spot.y), spot.y)
+		g["root"].global_position = Vector3(spot.x, w.walk_height(spot.x, spot.y), spot.y)
 		people.append({"p": g, "target": spot, "wait": 999.0, "speed": 0.0, "kind": "guarda", "phase": 0.0, "name": "Guarda",
 			"alive": true, "cd": _rng.randf_range(1.5, 3.5), "post": spot})
 	# pessoa especial (romance) na porta da taverna
@@ -185,7 +192,7 @@ func setup(ps: PortSite) -> void:
 		"coat": Color(0.62, 0.1, 0.2) if female else Color(0.12, 0.18, 0.4), "hat": 0 if female else 1})
 	add_child(sp["root"])
 	var door := Vector2(ps.tavern_pos.x, ps.tavern_pos.z) - ps.dir * 9.0
-	sp["root"].global_position = Vector3(door.x, w.terrain_height(door.x, door.y), door.y)
+	sp["root"].global_position = Vector3(door.x, w.walk_height(door.x, door.y), door.y)
 	special = {"p": sp, "target": door, "wait": 999.0, "speed": 0.0, "kind": "especial", "phase": 0.0, "name": rn}
 	people.append(special)
 	# cavalos no estábulo
@@ -196,6 +203,93 @@ func setup(ps: PortSite) -> void:
 		add_child(h)
 		h.place(hp, atan2(-ps.dir.x, -ps.dir.y))
 		horses.append(h)
+
+
+## Gente com ofício: padre na porta da igreja, vendedoras nas barracas, pescadores no píer,
+## estivadores levando caixas do píer aos armazéns e marinheiros bebendo na porta da taverna.
+func _add_roles(ps: PortSite) -> void:
+	var w := World.I
+	var u := Vector2(ps.dir.x, ps.dir.y)
+	var v := Vector2(-u.y, u.x)
+	var tc := Vector2(ps.town_center.x, ps.town_center.z)
+	var ang := atan2(ps.dir.x, ps.dir.y)
+	var q := Game.quality
+	var fixed := []
+	# padre na frente da igreja, olhando para a praça
+	fixed.append(["padre", tc - u * 14.5 + v * 1.5, atan2(-u.x, -u.y) + PI, ["Idle", "Talk"]])
+	# vendedoras nas barracas da praça
+	for k: int in ([0, 2] if q > 0 else [0]):
+		var a2: float = ang + PI * 0.25 + k * PI * 0.5
+		var sp := tc + Vector2(sin(a2), cos(a2)) * 12.6
+		var to_c := tc - sp
+		fixed.append(["vendedora", sp, atan2(-to_c.x, -to_c.y), ["Talk", "Idle", "Arms"]])
+	# pescadores na ponta do píer, olhando o mar
+	for s: float in [-1.0, 1.0]:
+		var fp := ps.coast_point + u * 69.0 + v * s * 8.5
+		fixed.append(["pescador", fp, atan2(-u.x, -u.y), ["Rail", "Idle", "Arms"]])
+	# marinheiros na porta da taverna (um já bebeu demais e dança)
+	var door := Vector2(ps.tavern_pos.x, ps.tavern_pos.z) - u * 7.0
+	fixed.append(["marinheiro", door + v * 3.0, 0.0, ["Drink", "Talk", "Idle"]])
+	fixed.append(["marinheiro", door + v * 4.4 - u * 0.8, 0.0, ["Talk", "Arms"]])
+	if q > 0:
+		fixed.append(["marinheiro", door - v * 4.0, 0.0, ["Dance"]])
+	for f in fixed:
+		var p := Assets.townsfolk(f[0], _rng)
+		add_child(p["root"])
+		var pos: Vector2 = f[1]
+		p["root"].global_position = Vector3(pos.x, w.walk_height(pos.x, pos.y), pos.y)
+		var yaw: float = f[2]
+		if f[0] == "marinheiro":
+			var to_mid := (door + v * 1.0) - pos
+			yaw = atan2(-to_mid.x, -to_mid.y)
+		p["root"].rotation.y = yaw
+		people.append({"p": p, "target": pos, "wait": _rng.randf() * 5.0, "speed": 0.0, "kind": "fixo", "phase": 0.0,
+			"name": f[0].capitalize(), "anims": f[3], "yaw": yaw})
+	# estivadores entre o píer e os armazéns
+	for k: float in ([-1.0, 1.0] if q > 0 else [1.0]):
+		var p := Assets.townsfolk("estivador", _rng)
+		add_child(p["root"])
+		var a := ps.coast_point + u * 25.0
+		var b: Vector2 = ps.coast_point + v * k * 30.0 + u * 2.0
+		p["root"].global_position = Vector3(a.x, w.walk_height(a.x, a.y), a.y)
+		people.append({"p": p, "target": b, "a": a, "b": b, "wait": _rng.randf() * 4.0, "speed": 1.15, "kind": "carregador",
+			"phase": 0.0, "name": "Estivador"})
+
+
+func _fixed(e: Dictionary, p: Dictionary, root: Node3D, delta: float) -> void:
+	if _panic > 0.0:
+		Assets.play(p, "Crouch")
+		return
+	e["wait"] = float(e["wait"]) - delta
+	if e["wait"] <= 0.0:
+		var anims: Array = e["anims"]
+		e["cur_anim"] = anims[_rng.randi() % anims.size()]
+		e["wait"] = _rng.randf_range(5.0, 11.0)
+		p["cur"] = ""
+	var an: String = e.get("cur_anim", e["anims"][0])
+	Assets.play(p, an, 0.7 if an == "Dance" else 1.0)
+	# a animação de beber não se repete sozinha
+	if an == "Drink" and not (p["ap"] as AnimationPlayer).is_playing():
+		p["cur"] = ""
+	root.rotation.y = lerp_angle(root.rotation.y, e["yaw"], delta * 2.0)
+
+
+func _carrier(e: Dictionary, p: Dictionary, root: Node3D, pos: Vector2, delta: float) -> void:
+	var w := World.I
+	if e["wait"] > 0.0:
+		e["wait"] -= delta
+		Assets.play(p, "Idle")
+		return
+	var tgt: Vector2 = e["target"]
+	var d := tgt - pos
+	if d.length() < 0.8:
+		e["target"] = e["a"] if tgt == e["b"] else e["b"]
+		e["wait"] = _rng.randf_range(1.5, 3.5)
+		return
+	pos += d.normalized() * float(e["speed"]) * delta
+	root.global_position = Vector3(pos.x, w.walk_height(pos.x, pos.y), pos.y)
+	root.rotation.y = lerp_angle(root.rotation.y, atan2(-d.x, -d.y), delta * 6.0)
+	Assets.play(p, "Carry")
 
 
 ## Um ponto ao acaso nas ruas (os moradores andam pelas ruas, não atravessam casas).
@@ -272,6 +366,12 @@ func _process(delta: float) -> void:
 		if e["kind"] == "guarda":
 			_guard(e, p, root, pos, lp, hot, delta)
 			continue
+		if e["kind"] == "fixo":
+			_fixed(e, p, root, delta)
+			continue
+		if e["kind"] == "carregador":
+			_carrier(e, p, root, pos, delta)
+			continue
 		if e["kind"] != "morador":
 			var to := Vector2(lp.x, lp.z) - pos
 			if to.length() < 15.0:
@@ -295,12 +395,12 @@ func _process(delta: float) -> void:
 			e["target"] = _random_spot()
 			continue
 		pos += step
-		root.global_position = Vector3(pos.x, w.terrain_height(pos.x, pos.y), pos.y)
+		root.global_position = Vector3(pos.x, w.walk_height(pos.x, pos.y), pos.y)
 		root.rotation.y = lerp_angle(root.rotation.y, atan2(-d.x, -d.y), delta * 6.0)
 		if running:
 			Assets.play(p, "Run")
 		else:
-			Assets.play(p, "Walk", e["speed"] / 1.3)
+			Assets.play(p, e.get("walk", "Walk"), e["speed"] / 1.3)
 
 
 ## Guarda: parado no posto; se a cidade for hostil, vai até o jogador e atira com o mosquete.
@@ -315,7 +415,7 @@ func _guard(e: Dictionary, p: Dictionary, root: Node3D, pos: Vector2, lp: Vector
 		var back := post - pos
 		if back.length() > 1.5 and hot:
 			pos += back.normalized() * 2.0 * delta
-			root.global_position = Vector3(pos.x, w.terrain_height(pos.x, pos.y), pos.y)
+			root.global_position = Vector3(pos.x, w.walk_height(pos.x, pos.y), pos.y)
 			root.rotation.y = lerp_angle(root.rotation.y, atan2(-back.x, -back.y), delta * 6.0)
 			Assets.musket_pose(p, MusketRig.CARRY)
 			Assets.play(p, "Walk")
@@ -331,7 +431,7 @@ func _guard(e: Dictionary, p: Dictionary, root: Node3D, pos: Vector2, lp: Vector
 		var stp := to.normalized() * 4.2 * delta
 		if not w.building_blocked(pos.x + stp.x, pos.y + stp.y):
 			pos += stp
-			root.global_position = Vector3(pos.x, w.terrain_height(pos.x, pos.y), pos.y)
+			root.global_position = Vector3(pos.x, w.walk_height(pos.x, pos.y), pos.y)
 		Assets.musket_pose(p, MusketRig.CARRY)
 		Assets.play(p, "Run")
 	else:

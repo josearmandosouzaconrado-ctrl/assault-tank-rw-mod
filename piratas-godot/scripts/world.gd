@@ -265,6 +265,11 @@ func walk_height(x: float, z: float) -> float:
 	for ps in port_islands:
 		if absf(x - ps.coast_point.x) < 100.0 and absf(z - ps.coast_point.y) < 100.0:
 			h = maxf(h, ps.pier_height(x, z))
+		# praça calçada (lajes um pouco acima do chão)
+		var px := x - ps.town_center.x
+		var pz := z - ps.town_center.z
+		if px * px + pz * pz < 21.0 * 21.0:
+			h += 0.4
 	return h
 
 

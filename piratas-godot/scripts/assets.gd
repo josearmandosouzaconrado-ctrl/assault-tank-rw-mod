@@ -148,7 +148,7 @@ const LINEN := Color(0.9, 0.88, 0.82)
 const HUMAN_ANIMS := {"Run": "Jog_Fwd", "Death": "Death01", "Sitting": "Sitting_Idle", "Clapping": "Idle_Talking",
 	"Punch": "Punch_Jab", "Sword": "Sword_Regular_A", "Sword2": "Sword_Regular_B", "SwordIdle": "Sword_Idle",
 	"Block": "Sword_Block", "Hit": "Hit_Chest", "Drink": "Consume", "Arms": "Idle_FoldArms", "Rail": "Idle_Rail",
-	"Lantern": "Idle_Lantern", "Talk": "Idle_Talking"}
+	"Lantern": "Idle_Lantern", "Talk": "Idle_Talking", "Carry": "Walk_Carry", "Formal": "Walk_Formal", "Crouch": "Crouch_Idle"}
 const SKIN_REF := Color(0.69, 0.52, 0.36)
 static var _lib: AnimationLibrary
 static var _body_shader: Shader
@@ -377,6 +377,14 @@ static func hat_mesh(kind: int) -> Mesh:
 		5:  # touca de linho (coif)
 			Island._sphere(st, Vector3(0, 0.02, 0.015), Vector3(0.125, 0.1, 0.13), Color(0.94, 0.93, 0.88), 9, 5)
 			ShipBuilder._tube(st, Vector3(0, -0.02, -0.11), Vector3(0, 0.06, -0.12), 0.02, 0.02, Color(0.94, 0.93, 0.88), 6)
+		7:  # chapéu preto de aba larga do padre
+			_brim(st, func(a: float) -> float: return 0.27, 0.0, black, black)
+			ShipBuilder._tube(st, Vector3(0, 0.0, 0), Vector3(0, 0.09, 0), 0.118, 0.11, black, 10)
+		8:  # chapéu de palha de pescador
+			var straw := Color(0.82, 0.72, 0.45)
+			_brim(st, func(a: float) -> float: return 0.3, -0.03, straw, straw.darkened(0.2))
+			ShipBuilder._tube(st, Vector3(0, 0.0, 0), Vector3(0, 0.1, 0), 0.12, 0.09, straw, 10)
+			ShipBuilder._tube(st, Vector3(0, 0.0, 0), Vector3(0, 0.025, 0), 0.122, 0.122, Color(0.4, 0.25, 0.12), 10)
 		6:  # tricórnio de soldado (galão branco)
 			_brim(st, func(a: float) -> float: return 0.2 + 0.05 * cos(3.0 * a), 0.07, black, Color(0.93, 0.92, 0.88))
 			ShipBuilder._tube(st, Vector3(0, 0.0, 0), Vector3(0, 0.11, 0), 0.115, 0.1, black, 10)
@@ -595,6 +603,47 @@ static func _disc(st: SurfaceTool, c: Vector3, r: float, col: Color) -> void:
 			st.add_vertex(v)
 
 
+## Moradores com papéis e roupas diferentes (padre, dama, cavalheiro, vendedora, pescador, estivador, marinheiro).
+const RICH := [Color(0.42, 0.08, 0.14), Color(0.12, 0.2, 0.48), Color(0.1, 0.32, 0.22), Color(0.55, 0.42, 0.12), Color(0.35, 0.12, 0.4), Color(0.75, 0.62, 0.55)]
+
+
+static func townsfolk(role: String, rng: RandomNumberGenerator) -> Dictionary:
+	match role:
+		"padre":
+			return person("homem", rng, {"look": "casaca", "coat": Color(0.06, 0.06, 0.07), "pants": Color(0.06, 0.06, 0.07),
+				"tie": Color(0.06, 0.06, 0.07), "hat": 7, "hair_style": 0, "style": {"petticoat": Color(0.07, 0.07, 0.08), "belt": Color(0.1, 0.1, 0.1)}})
+		"dama":
+			var c: Color = RICH[rng.randi() % RICH.size()]
+			return person("mulher", rng, {"look": "vestido", "coat": c, "hat": 3 if rng.randf() < 0.3 else 0,
+				"hair_style": [2, 3][rng.randi() % 2], "style": {"petticoat": c.lightened(0.08)}})
+		"cavalheiro":
+			var c2: Color = RICH[rng.randi() % RICH.size()]
+			return person("homem", rng, {"look": "casaca", "coat": c2, "tie": Color(0.85, 0.75, 0.5), "pants": c2.darkened(0.3), "wig": true,
+				"hat": 1, "hair_style": 1, "style": {"skirt": c2, "facing": c2.darkened(0.35), "cravat": true}})
+		"vendedora":
+			var c3: Color = CLOTH[rng.randi() % CLOTH.size()]
+			return person("mulher", rng, {"look": "corpete", "coat": c3, "hat": 5, "style": {"petticoat": CLOTH[rng.randi() % CLOTH.size()].darkened(0.15), "apron": true}})
+		"pescador":
+			return person("homem", rng, {"look": "camisa", "coat": LINEN.darkened(rng.randf() * 0.25), "pants": Color(0.35, 0.3, 0.25), "hat": 8,
+				"style": {"slops": Color(0.7, 0.66, 0.58), "belt": Color(0.25, 0.18, 0.1)}})
+		"estivador":
+			var p := person("homem", rng, {"look": "colete", "coat": Color(0.4, 0.3, 0.2), "hat": [2, 0][rng.randi() % 2],
+				"style": {"belt": Color(0.2, 0.13, 0.07)}})
+			var crate := MeshInstance3D.new()
+			crate.mesh = pirate("crate" if rng.randf() < 0.6 else "barrel")
+			var r := Attire._rest_char(p, "spine_03")
+			var ba := BoneAttachment3D.new()
+			ba.bone_name = "spine_03"
+			(r[0] as Skeleton3D).add_child(ba)
+			crate.transform = (r[2] as Transform3D).affine_inverse() * Transform3D(Basis.from_scale(Vector3.ONE * 0.5), Vector3(0, 0.95, -0.42))
+			ba.add_child(crate)
+			return p
+		"marinheiro":
+			return person("homem", rng, {"look": "camisa", "coat": [LINEN, Color(0.55, 0.15, 0.12), Color(0.25, 0.3, 0.45)][rng.randi() % 3],
+				"hat": [2, 2, 0, 1][rng.randi() % 4], "style": {"slops": LINEN.darkened(0.1), "belt": Color(0.2, 0.13, 0.07)}})
+	return person("mulher" if rng.randf() < 0.45 else "homem", rng)
+
+
 ## O capitão, com a roupa, a cor, o chapéu e a arma escolhidos pelo jogador.
 static func captain(rng: RandomNumberGenerator, with_musket := true) -> Dictionary:
 	var o: Dictionary = OUTFITS[clampi(Game.outfit, 0, OUTFITS.size() - 1)]
@@ -681,6 +730,7 @@ static func warm() -> void:
 			"rock_tallA", "rock_tallB", "log", "stump_old"]]]:
 		for piece in d[1]:
 			mesh("res://assets/kenney/%s/%s.glb" % [d[0], piece])
+	Structures.material()
 	scene(HUMAN_M)
 	scene(HUMAN_F)
 	_anim_library()

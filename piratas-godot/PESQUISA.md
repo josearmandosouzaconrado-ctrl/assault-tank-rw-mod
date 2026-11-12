@@ -96,3 +96,17 @@ Resumo do que os principais jogos do gênero fazem e de como isso guia o *Mares 
 - https://EN.wikipedia.com/wiki/Morro_Castle_(Havana)
 - https://Www.wikipedia.org/wiki/El_Morro_Castle
 - https://en.wikipedia.com/wiki/Architecture_in_Cuba
+
+## Estruturas (forte, píer e casas) — pesquisa para a versão 2.0
+- Fortes de Black Flag: três tipos de defesa — torres (canhões de longe), muralhas (tiros pesados de perto)
+  e morteiros (o maior alcance). No jogo: forte abaluartado de cantaria com talude e cordão, canhoneiras com
+  canhões, guaritas nas pontas dos baluartes (como em El Morro), torre de menagem com a bandeira, quartel,
+  paiol e dois morteiros no pátio. Fontes: guia de fortes navais da Prima Games e o guia de captura de fortes
+  da Gamepressure.
+- Casas de Havana no fim do século XVIII: paredes grossas, sacadas, venezianas, telhados de telha e pátios.
+  Nassau: casas como a Balcony House (anos 1770), com venezianas de madeira. Trinidad: o telhado de telha
+  vermelha de barro, com vigas que passam das paredes (beiral com caibros à mostra). Barbados: o estilo
+  "georgiano caribenho". Fontes: Daily life in Havana (late 18th century), Balcony House Museum (Nassau),
+  artigos sobre a arquitetura de Old Havana e de Barbados.
+- Píer: estacas de madeira em fileiras com travessas e contraventamento, tábuas atravessadas, cabeços de
+  amarração, defensas verticais no cabeço onde o navio encosta, escadas até a água e lampiões.

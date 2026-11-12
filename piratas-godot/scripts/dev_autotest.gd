@@ -204,6 +204,14 @@ func _run() -> void:
 	await _wait(0.6)
 	await _shot("14c_romance")
 	main.hud.close_dialog()
+	Game.romance[str(isl.idx)] = 90
+	main._love_scene(isl.idx, true)
+	await _wait(2.2)
+	await _shot("14c2_beijo")
+	await _wait(3.5)
+	await _shot("14c3_noite")
+	await _wait(7.0)
+	print("Romance: dia ", Game.day, " moral ", Game.morale, " afeto ", Game.affection(isl.idx))
 	# taverna
 	main.port_ui.open(isl.idx, "taverna")
 	get_tree().paused = true

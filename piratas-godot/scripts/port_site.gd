@@ -117,11 +117,12 @@ func settle(w: World) -> void:
 		var rad := 4.2 if house_nx[hi] == 2 else 5.4
 		blocks.append(Vector3(hp.x, hp.y, rad))
 	var t2 := Vector2(town_center.x, town_center.z)
-	for k in [-6.0, 0.0, 6.0]:
-		var c: Vector2 = t2 - dir * 24.0 + Vector2(-dir.y, dir.x) * k
-		blocks.append(Vector3(c.x, c.y, 5.0))
-	var tw := t2 - dir * 10.0
-	blocks.append(Vector3(tw.x, tw.y, 4.2))
+	var side2 := Vector2(dir.y, -dir.x)   # +X local da igreja
+	for k in [-10.0, -5.0, 0.0, 5.0]:
+		var c: Vector2 = t2 - dir * 24.0 + dir * k
+		blocks.append(Vector3(c.x, c.y, 5.6))
+	var tw := t2 - dir * 24.0 + dir * 5.5 + side2 * 7.5
+	blocks.append(Vector3(tw.x, tw.y, 3.0))
 	blocks.append(Vector3(t2.x, t2.y, 2.4))
 	blocks.append(Vector3(tavern_pos.x, tavern_pos.z, 7.0))
 	blocks.append(Vector3(fort_pos.x, fort_pos.z, 24.0))
@@ -190,148 +191,35 @@ func set_owner_flag(nat: int) -> void:
 
 
 # --------------------------------------------------------------- construção (pode rodar numa thread)
-const M := 3.0    # todas as casas usam o mesmo módulo de 3 m (largura, altura e fundo)
+const M := 3.0
 
 
-## Casa montada com peças da Kenney: nx × nz módulos de 3 m, 1 a 3 andares, telhado de duas águas.
-func _house_k(mg: Assets.Merger, mt: Material, origin: Vector3, ang: float, nx: int, nz: int, floors: int,
-		rng: RandomNumberGenerator, wood_upper: bool, m := M, round_windows := false) -> void:
-	var base := Transform3D(Basis(Vector3.UP, ang).scaled(Vector3.ONE * m), origin)
-	var door_cell := nx / 2
-	for f in floors:
-		var wood := wood_upper and f > 0
-		var plain := "wall-wood" if wood else "wall"
-		var window := "wall-window-round" if round_windows else ("wall-wood-window-shutters" if wood else "wall-window-shutters")
-		var small := "wall-wood-window-small" if wood else "wall-window-small"
-		for cx in nx:
-			for cz in nz:
-				var c := Vector3(cx - (nx - 1) * 0.5, f, cz - (nz - 1) * 0.5)
-				if cz == nz - 1:
-					var front := window
-					if f == 0 and cx == door_cell:
-						front = "wall-door"
-					mg.add(Assets.town(front), base * Transform3D(Basis(Vector3.UP, -PI * 0.5), c), mt)
-				if cz == 0:
-					mg.add(Assets.town(window if rng.randf() < 0.6 else plain), base * Transform3D(Basis(Vector3.UP, PI * 0.5), c), mt)
-				if cx == nx - 1:
-					mg.add(Assets.town(small if rng.randf() < 0.5 else plain), base * Transform3D(Basis(), c), mt)
-				if cx == 0:
-					mg.add(Assets.town(small if rng.randf() < 0.5 else plain), base * Transform3D(Basis(Vector3.UP, PI), c), mt)
-	for cx in nx:
-		for cz in nz:
-			var c := Vector3(cx - (nx - 1) * 0.5, floors, cz - (nz - 1) * 0.5)
-			if nx == 1 and nz == 1:
-				mg.add(Assets.town("roof-point"), base * Transform3D(Basis(), c), mt)
-			elif nz == 2:
-				mg.add(Assets.town("roof"), base * Transform3D(Basis(Vector3.UP, PI * 0.5 if cz == 1 else -PI * 0.5), c), mt)
-			elif cx == 0:
-				mg.add(Assets.town("roof-gable-end"), base * Transform3D(Basis(), c), mt)
-			elif cx == nx - 1:
-				mg.add(Assets.town("roof-gable-end"), base * Transform3D(Basis(Vector3.UP, PI), c), mt)
-			else:
-				mg.add(Assets.town("roof-gable"), base * Transform3D(Basis(), c), mt)
-	if rng.randf() < 0.4:
-		mg.add(Assets.town("chimney"), base * Transform3D(Basis(), Vector3((nx - 1) * 0.5 - 0.1, floors + 0.05, -0.3)), mt)
-
-
-## Forte abaluartado de pedra, como os castelos espanhóis do Caribe (El Morro):
-## muralhas inclinadas, quatro baluartes em ponta, parapeito com canhoneiras e canhões no alto.
-func _fort(root: Node3D, mp: Material, mt: Material, rng: RandomNumberGenerator) -> void:
+## Forte abaluartado de pedra, como os castelos espanhóis do Caribe (El Morro) e os fortes de Black Flag:
+## muralhas em talude, baluartes com guaritas, canhoneiras com canhões, torre de menagem, quartel, paiol e morteiros.
+func _fort(root: Node3D, mp: Material, rng: RandomNumberGenerator) -> void:
 	var fp := fort_pos
 	var fb := Basis(Vector3.UP, atan2(dir.x, dir.y) + 0.6)
-	var a := 15.0
-	var H := 7.5
-	var sq := [Vector2(a, a), Vector2(-a, a), Vector2(-a, -a), Vector2(a, -a)]
-	var poly := PackedVector2Array()
-	for i in 4:
-		var v: Vector2 = sq[i]
-		var vp: Vector2 = sq[(i + 3) % 4]
-		var vn: Vector2 = sq[(i + 1) % 4]
-		var e_in := (v - vp).normalized()
-		var e_out := (vn - v).normalized()
-		var n_in := Vector2(e_in.y, -e_in.x)
-		var n_out := Vector2(e_out.y, -e_out.x)
-		if n_in.dot(v) < 0.0:
-			n_in = -n_in
-		if n_out.dot(v) < 0.0:
-			n_out = -n_out
-		var p1 := v - e_in * 6.5
-		poly.append(p1)
-		poly.append(p1 + n_in * 3.5)
-		poly.append(v + v.normalized() * 10.0)
-		poly.append(v + e_out * 6.5 + n_out * 3.5)
-		poly.append(v + e_out * 6.5)
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var stone := Color(0.74, 0.68, 0.56).srgb_to_linear()
-	var n := poly.size()
-	var inner := PackedVector2Array()
-	for i in n:
-		inner.append(poly[i] * (1.0 - 2.2 / poly[i].length()))
-	var dist := 0.0
-	var y0 := -3.0
-	for i in n:
-		var p0 := poly[i]
-		var p1 := poly[(i + 1) % n]
-		var seg_len := p0.distance_to(p1)
-		var t0 := p0 * (1.0 - 1.0 / p0.length())   # topo recuado (talude)
-		var t1 := p1 * (1.0 - 1.0 / p1.length())
-		var q := [Vector3(p0.x, y0, p0.y), Vector3(p1.x, y0, p1.y), Vector3(t1.x, H, t1.y), Vector3(t0.x, H, t0.y)]
-		var uvs := [Vector2(dist, 0), Vector2(dist + seg_len, 0), Vector2(dist + seg_len, H - y0), Vector2(dist, H - y0)]
-		for k in [0, 1, 2, 0, 2, 3]:
-			st.set_color(stone)
-			st.set_uv(uvs[k])
-			st.add_vertex(fb * q[k] + fp)
-		# parapeito com merlões e canhoneiras
-		var segs := maxi(1, int(seg_len / 2.6))
-		for sgi in segs:
-			var u0 := float(sgi) / segs
-			var u1 := float(sgi + 1) / segs
-			var top := H + (1.4 if sgi % 2 == 0 else 0.6)
-			var a0 := t0.lerp(t1, u0)
-			var a1 := t0.lerp(t1, u1)
-			var b0 := inner[i].lerp(inner[(i + 1) % n], u0).lerp(a0, 0.55)
-			var b1 := inner[i].lerp(inner[(i + 1) % n], u1).lerp(a1, 0.55)
-			var faces := [
-				[Vector3(a0.x, H, a0.y), Vector3(a1.x, H, a1.y), Vector3(a1.x, top, a1.y), Vector3(a0.x, top, a0.y)],
-				[Vector3(b1.x, H, b1.y), Vector3(b0.x, H, b0.y), Vector3(b0.x, top, b0.y), Vector3(b1.x, top, b1.y)],
-				[Vector3(a0.x, top, a0.y), Vector3(a1.x, top, a1.y), Vector3(b1.x, top, b1.y), Vector3(b0.x, top, b0.y)],
-			]
-			for fq in faces:
-				var fu := [Vector2(dist + u0 * seg_len, H - y0), Vector2(dist + u1 * seg_len, H - y0), Vector2(dist + u1 * seg_len, top - y0), Vector2(dist + u0 * seg_len, top - y0)]
-				for k in [0, 1, 2, 0, 2, 3]:
-					st.set_color(stone * 0.95)
-					st.set_uv(fu[k])
-					st.add_vertex(fb * fq[k] + fp)
-		dist += seg_len
-	# piso do terrapleno
-	var tri := Geometry2D.triangulate_polygon(poly)
-	for k in tri:
-		var pp := poly[k] * (1.0 - 1.0 / poly[k].length())
-		st.set_color(stone * 0.8)
-		st.set_uv(pp)
-		st.add_vertex(fb * Vector3(pp.x, H - 0.05, pp.y) + fp)
-	st.generate_normals()
+	var guns := Structures.fort(st, Transform3D(fb, fp), rng)
+	# morteiros (bocas largas apontadas para o céu) no pátio
+	for k in 2:
+		var mpos := fp + fb * Vector3(-3.0 + k * 6.0, 7.5, 9.0)
+		Structures.box(st, Transform3D(fb, mpos + Vector3(0, 0.25, 0)), Vector3(1.6, 0.5, 2.0), Color(0.4, 0.3, 0.2), Structures.WOOD)
+		Structures.cyl(st, mpos + Vector3(0, 0.5, 0), mpos + fb * Vector3(0, 1.4, 0.5), 0.55, 0.5, Color(0.2, 0.2, 0.22), Structures.PLAIN, 10, true)
+		Structures.cyl(st, mpos + fb * Vector3(0, 1.38, 0.49), mpos + fb * Vector3(0, 1.42, 0.5), 0.36, 0.36, Color(0.02, 0.02, 0.02), Structures.DARK, 10, true)
+		# pirâmide de balas
+		for j in 6:
+			Island._sphere(st, mpos + fb * Vector3(1.4 + (j % 3) * 0.3, 0.15 + (j / 3) * 0.25, -1.0 + (j / 3) * 0.15), Vector3.ONE * 0.15, Color(0.12, 0.12, 0.13), 5, 3)
 	var mi := MeshInstance3D.new()
 	mi.mesh = st.commit()
-	var smat := ShaderMaterial.new()
-	smat.shader = Island._stone_shader
-	mi.material_override = smat
+	mi.material_override = Structures.material()
 	root.add_child(mi)
-	# canhões nas canhoneiras dos baluartes e quartel no centro
 	var mg := Assets.Merger.new()
-	for i in n:
-		if i % 5 == 1 or i % 5 == 3:
-			var p0 := poly[i]
-			var p1 := poly[(i + 1) % n]
-			var mid := (p0 + p1) * 0.5
-			var out := Vector2((p1 - p0).y, -(p1 - p0).x).normalized()
-			if out.dot(mid) < 0.0:
-				out = -out
-			var cp := mid - out * 2.6
-			var cb := fb * Basis(Vector3.UP, atan2(out.x, out.y))
-			mg.add(Assets.pirate("cannon"), Transform3D(cb.scaled(Vector3.ONE * 1.3), fb * Vector3(cp.x, H, cp.y) + fp), mp)
-	_house_k(mg, mt, fp + Vector3(0, H - 0.05, 0), atan2(dir.x, dir.y) + 0.6, 2, 2, 1, rng, false)
+	for g in guns:
+		var gd: Vector3 = g[1]
+		var cb := Basis(Vector3.UP, atan2(gd.x, gd.z))
+		mg.add(Assets.pirate("cannon"), Transform3D(cb.scaled(Vector3.ONE * 1.35), g[0]), mp)
 	var mi2 := MeshInstance3D.new()
 	mi2.mesh = mg.commit()
 	root.add_child(mi2)
@@ -352,27 +240,37 @@ func build() -> void:
 	gs.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var ang := atan2(dir.x, dir.y)
 	var tc := Vector2(town_center.x, town_center.z)
-	var wood_style := nation == Game.ENG or nation == Game.HOL or nation == Game.FRA
-	# casas viradas para a praça
+	var bs := SurfaceTool.new()   # construções procedurais (casas, igreja, píer)
+	bs.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# casas coloniais viradas para a rua
 	for hi in houses.size():
 		var wp := houses[hi]
 		var h := w.terrain_height(wp.x, wp.y)
-		_house_k(mg, mt, Vector3(wp.x, h - 0.15, wp.y), house_face[hi], house_nx[hi], 2, 2, rng, wood_style)
+		var hst := Structures.house_style(nation, rng)
+		var hw := 6.0 if house_nx[hi] == 2 else 8.8
+		Structures.house(bs, Transform3D(Basis(Vector3.UP, house_face[hi]), Vector3(wp.x, h - 0.05, wp.y)), hw, 6.4, hst, rng)
 		# barris e caixotes encostados em algumas casas
 		if rng.randf() < 0.35:
 			var hb := Basis(Vector3.UP, house_face[hi])
-			var pp := Vector3(wp.x, h, wp.y) + hb * Vector3(house_nx[hi] * 1.5 + 0.8, 0, -2.0)
+			var pp := Vector3(wp.x, h, wp.y) + hb * Vector3(hw * 0.5 + 0.7, 0, 1.0)
 			mg.add(Assets.pirate("barrel" if rng.randf() < 0.5 else "crate"), Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * 0.9), pp), mp)
-	# igreja com torre
-	var cpos := town_center - Vector3(0, 0.15, 0) - Vector3(dir.x, 0, dir.y) * 24.0
-	_house_k(mg, mt, cpos, ang, 4, 2, 3, rng, false, M, true)
-	var tpos := town_center - Vector3(0, 0.15, 0) - Vector3(dir.x, 0, dir.y) * 10.0
-	_house_k(mg, mt, tpos, ang, 1, 1, 6, rng, false, 3.6, true)
-	# taverna
+	Structures.plaza(bs, w, town_center, 21.0)
+	# igreja barroca com torre sineira, de frente para a praça
+	var cpos := town_center - Vector3(dir.x, 0, dir.y) * 24.0
+	cpos.y = w.terrain_height(cpos.x, cpos.z) - 0.05
+	Structures.church(bs, Transform3D(Basis(Vector3.UP, ang), cpos), nation, rng)
+	# taverna (sobrado com sacada) e a placa
 	var tb := ang + PI
-	_house_k(mg, mt, tavern_pos - Vector3(0, 0.15, 0), tb, 3, 2, 2, rng, true)
+	var tst := Structures.house_style(nation, rng)
+	tst["floors"] = 2
+	tst["balcony"] = true
+	tst["flat"] = false
+	tst["dutch"] = false
+	Structures.house(bs, Transform3D(Basis(Vector3.UP, tb), tavern_pos - Vector3(0, 0.05, 0)), 10.0, 7.0, tst, rng)
 	var tbb := Basis(Vector3.UP, tb)
-	mg.add(Assets.town("banner-red"), Transform3D(tbb * Basis.from_scale(Vector3.ONE * M) * Basis(Vector3.UP, -PI * 0.5), tavern_pos + tbb * Vector3(-M, 2.2, M + 0.2)), mt)
+	Structures.beam(bs, tavern_pos + tbb * Vector3(-3.5, 3.9, 3.6), tavern_pos + tbb * Vector3(-3.5, 3.9, 5.0), 0.08, 0.08, Color(0.15, 0.15, 0.16), Structures.PLAIN)
+	Structures.box(bs, Transform3D(tbb * Basis(Vector3.UP, PI * 0.5), tavern_pos + tbb * Vector3(-3.5, 3.3, 4.6)), Vector3(0.9, 0.9, 0.06), Color(0.45, 0.3, 0.18), Structures.WOOD)
+	Island._sphere(bs, tavern_pos + tbb * Vector3(-3.46, 3.3, 4.6), Vector3(0.12, 0.3, 0.3), Color(0.75, 0.6, 0.25), 6, 4)
 	# praça: chafariz, barracas, lampiões e carroças
 	mg.add(Assets.town("fountain-round"), Transform3D(Basis.from_scale(Vector3.ONE * 2.4), town_center + Vector3(0, -0.1, 0)), mt)
 	mg.add(Assets.town("fountain-center"), Transform3D(Basis.from_scale(Vector3.ONE * 2.4), town_center + Vector3(0, -0.1, 0)), mt)
@@ -391,13 +289,10 @@ func build() -> void:
 		var cp2 := town_center + Vector3(dir.x, 0, dir.y) * (20.0 + k * 6.0) + Vector3(-dir.y, 0, dir.x) * (8.0 - k * 16.0)
 		cp2.y = w.terrain_height(cp2.x, cp2.z)
 		mg.add(Assets.town("cart"), Transform3D(Basis(Vector3.UP, ang + k).scaled(Vector3.ONE * 2.6), cp2), mt)
-	# cais de tábuas
+	# píer de madeira sobre estacas
 	var cp := Vector3(coast_point.x, 0.0, coast_point.y)
 	var db := Basis(Vector3.UP, ang)
-	for k in 11:
-		mg.add(Assets.pirate("structure-platform-dock"), Transform3D(db * Basis.from_scale(Vector3(2.9, 1.3, 2.8)), cp + db * Vector3(0, 0, -3.5 + k * 7.0)), mp)
-	for sx in [-1.0, 1.0]:
-		mg.add(Assets.pirate("structure-platform-dock"), Transform3D(db * Basis.from_scale(Vector3(2.9, 1.3, 2.8)), cp + db * Vector3(sx * 7.25, 0, 66.0)), mp)
+	Structures.pier(bs, gs, Transform3D(db, cp), rng)
 	# barris, caixotes e botes no cais
 	for k in 10:
 		var bp := cp + db * Vector3(rng.randf_range(-2.8, 2.8), 1.7, rng.randf_range(4.0, 60.0))
@@ -409,24 +304,28 @@ func build() -> void:
 	for k in [-30.0, 30.0]:
 		var wpos := cp + db * Vector3(k, 0, -20)
 		var h2 := w.terrain_height(wpos.x, wpos.z)
-		_house_k(mg, mt, Vector3(wpos.x, maxf(h2, 1.0) - 0.15, wpos.z), ang + PI, 3, 2, 1, rng, true)
+		Structures.warehouse(bs, Transform3D(Basis(Vector3.UP, ang + PI), Vector3(wpos.x, maxf(h2, 1.0) - 0.05, wpos.z)), 11.0, 7.0, rng)
 		for j in 3:
 			var bp2 := Vector3(wpos.x, maxf(h2, 1.0), wpos.z) + db * Vector3(-4.0 + j * 3.0, 0, 5.0)
 			mg.add(Assets.pirate("crate" if j % 2 == 0 else "barrel"), Transform3D(Basis(Vector3.UP, rng.randf() * TAU), bp2), mp)
-	_fort(root, mp, mt, rng)
+	_fort(root, mp, rng)
 	var fp := fort_pos
 	var mi := MeshInstance3D.new()
 	mi.mesh = mg.commit()
 	root.add_child(mi)
+	var bmi := MeshInstance3D.new()
+	bmi.mesh = bs.commit()
+	bmi.material_override = Structures.material()
+	root.add_child(bmi)
 	var pole := MeshInstance3D.new()
 	var pm := CylinderMesh.new()
 	pm.top_radius = 0.15
 	pm.bottom_radius = 0.22
-	pm.height = 16.0
+	pm.height = 10.0
 	pole.mesh = pm
 	var fbb := Basis(Vector3.UP, atan2(dir.x, dir.y) + 0.6)
-	var pole_base := fp + fbb * Vector3(0, 0, -9.0)
-	pole.position = pole_base + Vector3(0, 7.5 + 8.0, 0)
+	var pole_base := fp + fbb * Vector3(0, 8.3, -6.0)   # no alto da torre de menagem
+	pole.position = pole_base + Vector3(0, 7.5 + 5.0, 0)
 	root.add_child(pole)
 	var flag := MeshInstance3D.new()
 	flag.mesh = ShipBuilder.flag_mesh(7.5, 5.0)
@@ -434,7 +333,7 @@ func build() -> void:
 	flag_mat.shader = Island._flag_shader
 	flag_mat.set_shader_parameter("flag_type", Game.NATIONS[nat]["flag"])
 	flag.material_override = flag_mat
-	flag.position = pole_base + Vector3(0.2, 7.5 + 15.8, 0)
+	flag.position = pole_base + Vector3(0.2, 7.5 + 9.8, 0)
 	root.add_child(flag)
 	var glow := MeshInstance3D.new()
 	glow.mesh = gs.commit()

@@ -45,6 +45,9 @@ Como pirata, sua infâmia cresce (Marujo Rebelde → Rei dos Piratas) e caçador
 - **Romance**: em cada cidade há uma pessoa especial. Converse, dê presentes, convide para jantar e, com afeto máximo, peça em casamento.
 - **Combater** como no Black Flag: bordadas pelos costados (três munições: redonda, corrente e metralha), **canhões de proa** com corrente que freia o inimigo, **morteiros** de longe (o círculo vermelho mostra onde as bombas caem; os inimigos grandes também usam), **segurar-se** para receber menos dano e **abalroar** (melhor com o esporão de ferro).
 - **Abordagem em tempo real** (como em Black Flag): os navios ficam presos pelos ganchos e você luta no convés inimigo com o sabre, ao lado da sua tripulação. ESPADA golpeia em sequência, DEFENDER apara — se o inimigo atacar (marca vermelha sobre a cabeça) enquanto você apara, vem o contra-ataque — e PISTOLA dá um tiro a cada 6 s. Derrube todos para render o navio.
+- **Cidades coloniais de verdade**: casas de paredes grossas rebocadas e coloridas (como Havana, Nassau e Willemstad), telhado de telha capa-canal com beiral e caibros, venezianas, sacadas e varandas de madeira, terraços espanhóis e frontões holandeses; igreja barroca com torre sineira; praça calçada; píer de madeira sobre estacas com cabeços de amarração, defensas, escadas e lampiões; forte abaluartado com guaritas, canhoneiras, torre de menagem com a bandeira, quartel, paiol e morteiros.
+- **Gente com ofício**: padre na porta da igreja, damas e cavalheiros passeando, vendedoras nas barracas, pescadores no píer, estivadores carregando caixas, marinheiros bebendo na porta da taverna.
+- **Romance**: com afeto suficiente dá para beijar (cena de perto) e passar a noite juntos — a tela escurece e vocês acordam de manhã.
 - **Personagens realistas**: modelos humanos com animações de verdade (andar, correr, sabre, aparar, morrer), roupas recortadas por região (casaca, colete, camisa, calção, meias, sapatos), cabelo com rabicho ou coque, e mosquete de pederneira detalhado (fecho, latão, vareta, bandoleira, baioneta).
 - **Combate a pé**: o capitão anda em terceira pessoa com mosquete e sabre (botão SABRE). Em cidades inimigas (ou se você atirar numa cidade amiga) os guardas atacam; suas tropas atiram junto. Com o forte silenciado e todos os guardas derrubados, dá para **tomar a cidade** a pé.
 - **Uniformes e roupas da época**: casacas compridas com vistas coloridas por nação (vermelho britânico, branco espanhol, cinza-esbranquiçado francês, azul holandês, verde português), talabarte e tricórnio; marujos de calções largos; mulheres de saia comprida, avental e touca. Os soldados seguram o mosquete como nos manuais de armas: ombro-armas, descansar e apontar.
@@ -113,6 +116,8 @@ scripts/attire.gd       roupas da época presas aos ossos (casaca, vistas, talab
 scripts/musket_rig.gd   posições do mosquete com cinemática inversa nos braços
 scripts/boarding.gd     abordagem em tempo real (sabre, aparar/contra-ataque, pistola)
 scripts/attire.gd       roupas, cabelo, chapéus e sabre presos aos ossos
+scripts/structures.gd   casas, igreja, armazéns, praça, píer e forte feitos por procedimento
+shaders/building.gdshader reboco, telha, tábuas e cantaria desenhados pelo shader
 shaders/person.gdshader corpo dos personagens com as roupas da época
 tools/preparar_humanos.py  reduz os modelos humanos para o celular
 scripts/assets.gd       carrega os modelos 3D, animações e junta peças numa malha só
