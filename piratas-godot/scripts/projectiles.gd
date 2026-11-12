@@ -33,12 +33,29 @@ func _init() -> void:
 	extra_cull_margin = 16384.0
 
 
-func fire(p: Vector3, v: Vector3, owner: Object, nation: int, dmg: float, ammo: int, from_player: bool) -> void:
+## extra: {"g": gravidade própria, "slow": freia o alvo (corrente), "mortar": explode em área}
+func fire(p: Vector3, v: Vector3, owner: Object, nation: int, dmg: float, ammo: int, from_player: bool, extra := {}) -> void:
 	if pos.size() >= MAX:
 		return
 	pos.append(p)
 	vel.append(v)
-	data.append({"owner": owner, "nation": nation, "dmg": dmg, "ammo": ammo, "from_player": from_player, "age": 0.0})
+	var d := {"owner": owner, "nation": nation, "dmg": dmg, "ammo": ammo, "from_player": from_player, "age": 0.0}
+	d.merge(extra)
+	data.append(d)
+
+
+## Explosão de bomba de morteiro: atinge navios num raio.
+func _explode(w: World, at: Vector3, info: Dictionary, skip: Object) -> void:
+	Effects.I.emit("splash", at)
+	Effects.I.emit("flash", at + Vector3(0, 1, 0), Vector3.UP)
+	Effects.I.emit("smoke", at, Vector3.UP)
+	Sfx.play_at("cannon", at, 0.0, 0.7)
+	for s in w.ships:
+		if s == skip or s == info["owner"] or s.dead:
+			continue
+		var d := Vector2(s.global_position.x - at.x, s.global_position.z - at.z).length()
+		if d < s.radius * 0.6 + 9.0:
+			s.take_hit(info["dmg"] * 0.9, 0, info["owner"], s.global_position + Vector3(0, 2, 0), info["from_player"], info["nation"])
 
 
 ## Ângulo de elevação para acertar a distância `d` (com diferença de altura dy) — o tiro baixo.
@@ -66,9 +83,9 @@ func _physics_process(delta: float) -> void:
 	while i < pos.size():
 		var p := pos[i]
 		var v := vel[i]
-		v.y -= GRAVITY * delta
-		var np := p + v * delta
 		var info: Dictionary = data[i]
+		v.y -= float(info.get("g", GRAVITY)) * delta
+		var np := p + v * delta
 		info["age"] += delta
 		var remove := false
 		# navios
@@ -80,13 +97,18 @@ func _physics_process(delta: float) -> void:
 			var hit := s.hit_test(p, np)
 			if hit != Vector3.INF:
 				s.take_hit(info["dmg"], info["ammo"], info["owner"], hit, info["from_player"], info["nation"])
+				if info.get("slow", false) and not s.dead:
+					s.speed *= 0.45
+					s.sail_hp = maxf(0.0, s.sail_hp - 6.0)
+				if info.get("mortar", false):
+					_explode(w, hit, info, s)
 				remove = true
 				break
 		# fortes
 		if not remove:
 			var f := w.fort_hit(np)
 			if f >= 0:
-				w.damage_fort(f, info["dmg"], info["from_player"], np)
+				w.damage_fort(f, info["dmg"] * (2.2 if info.get("mortar", false) else 1.0), info["from_player"], np)
 				remove = true
 		if not remove:
 			var th := w.terrain_height(np.x, np.z)
@@ -95,11 +117,13 @@ func _physics_process(delta: float) -> void:
 				Sfx.play_at("hit", np, -6.0, 0.7)
 				remove = true
 			elif np.y < Ocean.height_at(np.x, np.z):
+				if info.get("mortar", false):
+					_explode(w, Vector3(np.x, Ocean.height_at(np.x, np.z), np.z), info, null)
 				Effects.I.emit("splash", Vector3(np.x, Ocean.height_at(np.x, np.z), np.z))
 				if np.distance_to(w.listener_pos()) < 400.0:
 					Sfx.play_at("splash", np, -4.0)
 				remove = true
-		if remove or info["age"] > 12.0:
+		if remove or info["age"] > 16.0:
 			pos.remove_at(i)
 			vel.remove_at(i)
 			data.remove_at(i)

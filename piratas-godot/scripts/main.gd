@@ -49,7 +49,11 @@ func _ready() -> void:
 	menu.show_main()
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--autotest="):
-			var t: Node = load("res://scripts/dev_autotest.gd").new()
+			var path := "res://scripts/dev_autotest.gd"
+			for b in OS.get_cmdline_user_args():
+				if b.begins_with("--testscript="):
+					path = b.split("=")[1]
+			var t: Node = load(path).new()
 			t.main = self
 			add_child(t)
 
@@ -102,6 +106,7 @@ func _enter_game() -> void:
 	world.build_islands_near(Game.player_pos, 3200.0)
 	hud = HUD.new(ctl)
 	add_child(hud)
+	ctl.hud_ref = hud
 	hud.open_map.connect(_open_map)
 	hud.open_menu.connect(_open_pause)
 	hud.action_pressed.connect(_on_action)
@@ -138,6 +143,11 @@ func _update_action() -> void:
 			hud.set_action("", "")
 		elif ctl.near_treasure():
 			hud.set_action("dig", "Cavar o tesouro!")
+		elif ctl.town and ctl.town.hostile() and ctl.town.guards_alive() == 0 and Game.port_fort_hp[ctl.town.site.idx] <= 0.0 \
+				and Game.port_owner[ctl.town.site.idx] != Game.career and ctl.foot_pos.distance_to(ctl.town.site.town_center) < 60.0:
+			hud.set_action("conquer", "Tomar %s!" % ctl.town.site.name)
+		elif ctl.town and ctl.town.hostile() and ctl.town.guards_alive() > 0:
+			hud.set_action("back", "Recuar para o navio")
 		elif ctl.near_horse():
 			hud.set_action("mount", "Montar no cavalo")
 		elif ctl.town and not ctl.town.nearest_person(ctl.foot_pos, 3.2).is_empty():
@@ -195,6 +205,16 @@ func _on_action(id: String) -> void:
 			ctl.mount(ctl.near_horse())
 		"dismount":
 			ctl.dismount()
+		"conquer":
+			if ctl.town:
+				var ci := ctl.town.site.idx
+				var res := world.capture_port(ci, 0.25)
+				if res["win"]:
+					ctl.town.alarm = false
+					Sfx.play("bell")
+					hud.show_dialog("Cidade tomada!", "%s agora pertence a %s! Saque: %d moedas." % [ctl.town.site.name, Game.NATIONS[Game.career]["name"], res.get("gold", 0)], [["Viva!", Callable()]])
+				else:
+					hud.show_dialog("Resistência", "Os últimos defensores repeliram você. Perdeu %d homens." % res["lost"], [["Recuar", Callable()]])
 		"talk":
 			_talk()
 		"romance":

@@ -163,7 +163,7 @@ func _vegetation(w: World, root: Node3D) -> void:
 	var groups := {}   # caminho -> Array[Transform3D]
 	var vis := {}      # caminho -> distância de visibilidade
 	var o := origin()
-	var tries := int(4200 * dens)
+	var tries := int(5200 * dens)
 	for k in tries:
 		var lp := Vector2(rng.randf() * SIZE, rng.randf() * SIZE)
 		var wp := o + lp

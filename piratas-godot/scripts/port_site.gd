@@ -15,6 +15,10 @@ var stable_pos := Vector3.ZERO
 var tavern_pos := Vector3.ZERO
 var pier_end := Vector3.ZERO
 var houses: Array[Vector2] = []
+var house_face: Array[float] = []
+var house_nx: Array[int] = []
+var streets: Array[PackedVector2Array] = []
+static var _street_mat: StandardMaterial3D
 var blocks: Array[Vector3] = []   # obstáculos (x, z, raio) para quem anda a pé ou a cavalo
 var flag_mat: ShaderMaterial
 var fort_ruin: Node3D
@@ -71,41 +75,60 @@ func settle(w: World) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = idx * 977 + 13
 	var tc := Vector2(town_center.x, town_center.z)
-	var tries := 0
-	var count := 30 if Game.quality > 0 else 20
+	var u := -dir                        # do mar para dentro da terra
+	var v := Vector2(-dir.y, dir.x)      # ao longo da costa
+	var L := func(a: float, b: float) -> Vector2: return tc + u * a + v * b
+	# malha de ruas: avenida do cais à praça, ruas paralelas e transversais
+	streets.clear()
+	streets.append(PackedVector2Array([coast_point, L.call(-24.0, 0.0)]))
+	for sv in [-48.0, 48.0]:
+		streets.append(PackedVector2Array([L.call(-95.0, sv), L.call(120.0, sv)]))
+	for su in [-70.0, -24.0, 58.0, 112.0]:
+		streets.append(PackedVector2Array([L.call(su, -80.0), L.call(su, 80.0)]))
+	streets.append(PackedVector2Array([L.call(24.0, 0.0), L.call(112.0, 0.0)]))
+	# lotes ao longo das ruas, com a casa virada para a rua
 	houses.clear()
-	while houses.size() < count and tries < 500:
-		tries += 1
-		var wp := tc + Vector2(rng.randf_range(-135, 135), rng.randf_range(-135, 135))
-		var h := w.terrain_height(wp.x, wp.y)
-		if h < 1.8 or h > 16.0:
-			continue
-		if wp.distance_to(tc) < 22.0 or wp.distance_to(Vector2(tavern_pos.x, tavern_pos.z)) < 16.0 or wp.distance_to(Vector2(stable_pos.x, stable_pos.z)) < 18.0:
-			continue
-		var ok := true
-		for q in houses:
-			if q.distance_to(wp) < 18.0:
-				ok = false
-				break
-		if ok:
-			houses.append(wp)
+	house_face.clear()
+	house_nx.clear()
+	var count: int = [24, 36, 48][Game.quality]
+	var avoid := [[tc, 27.0], [L.call(24.0, 0.0), 15.0], [Vector2(tavern_pos.x, tavern_pos.z), 13.0],
+		[Vector2(stable_pos.x, stable_pos.z), 20.0], [Vector2(fort_pos.x, fort_pos.z), 34.0]]
+	for si in streets.size():
+		var sp: PackedVector2Array = streets[si]
+		var a0 := sp[0]
+		var a1 := sp[1]
+		var along := (a1 - a0).normalized()
+		var nrm := Vector2(-along.y, along.x)
+		var length := a0.distance_to(a1)
+		var t := 10.0
+		while t < length - 6.0 and houses.size() < count:
+			for side in [-1.0, 1.0]:
+				var nx := 3 if rng.randf() < 0.55 else 2
+				var hp: Vector2 = a0 + along * t + nrm * side * (3.5 + 6.5)
+				if _lot_ok(w, hp, avoid, si):
+					houses.append(hp)
+					house_face.append(atan2(-nrm.x * side, -nrm.y * side))
+					house_nx.append(nx)
+			t += rng.randf_range(11.5, 14.0)
 	# obstáculos: casas, igreja, torre, taverna, armazéns, forte
 	blocks.clear()
-	for hp in houses:
-		blocks.append(Vector3(hp.x, hp.y, 5.6))
+	for hi in houses.size():
+		var hp := houses[hi]
+		var rad := 4.2 if house_nx[hi] == 2 else 5.4
+		blocks.append(Vector3(hp.x, hp.y, rad))
 	var t2 := Vector2(town_center.x, town_center.z)
-	for k in [17.0, 31.0]:
-		var c: Vector2 = t2 - dir * k
-		blocks.append(Vector3(c.x, c.y, 7.0))
+	for k in [-6.0, 0.0, 6.0]:
+		var c: Vector2 = t2 - dir * 24.0 + Vector2(-dir.y, dir.x) * k
+		blocks.append(Vector3(c.x, c.y, 5.0))
 	var tw := t2 - dir * 10.0
 	blocks.append(Vector3(tw.x, tw.y, 4.2))
 	blocks.append(Vector3(t2.x, t2.y, 2.4))
 	blocks.append(Vector3(tavern_pos.x, tavern_pos.z, 7.0))
 	blocks.append(Vector3(fort_pos.x, fort_pos.z, 24.0))
 	var db := Basis(Vector3.UP, atan2(dir.x, dir.y))
-	for k in 3:
-		var wpos := Vector3(coast_point.x, 0, coast_point.y) + db * Vector3(-24 + k * 24, 0, -20)
-		blocks.append(Vector3(wpos.x, wpos.z, 8.0))
+	for k in [-30.0, 30.0]:
+		var wpos := Vector3(coast_point.x, 0, coast_point.y) + db * Vector3(k, 0, -20)
+		blocks.append(Vector3(wpos.x, wpos.z, 7.0))
 
 
 ## Altura do piso do cais (ou -INF fora dele).
@@ -125,6 +148,31 @@ func blocked(x: float, z: float) -> bool:
 		if dx * dx + dz * dz < b.z * b.z:
 			return true
 	return false
+
+
+func _lot_ok(w: World, hp: Vector2, avoid: Array, own_street: int) -> bool:
+	var h := w.raw_height(hp.x, hp.y)
+	if h < 1.6 or h > 40.0:
+		return false
+	for av in avoid:
+		if hp.distance_to(av[0]) < av[1]:
+			return false
+	for q in houses:
+		if q.distance_to(hp) < 9.5:
+			return false
+	for si in streets.size():
+		if si == own_street:
+			continue
+		var sp: PackedVector2Array = streets[si]
+		var ab := sp[1] - sp[0]
+		var k := clampf((hp - sp[0]).dot(ab) / ab.length_squared(), 0.0, 1.0)
+		if hp.distance_to(sp[0] + ab * k) < 9.0:
+			return false
+	# não invade o caminho do cais
+	var c := hp - coast_point
+	if absf(c.dot(Vector2(-dir.y, dir.x))) < 9.0 and c.dot(-dir) < 105.0:
+		return false
+	return true
 
 
 func _march_to_sea(w: World, from: Vector2, d: Vector2) -> Vector2:
@@ -306,17 +354,18 @@ func build() -> void:
 	var tc := Vector2(town_center.x, town_center.z)
 	var wood_style := nation == Game.ENG or nation == Game.HOL or nation == Game.FRA
 	# casas viradas para a praça
-	for wp in houses:
+	for hi in houses.size():
+		var wp := houses[hi]
 		var h := w.terrain_height(wp.x, wp.y)
-		var to := tc - wp
-		var face := atan2(to.x, to.y)
-		face = snappedf(face, PI * 0.5) + rng.randf_range(-0.05, 0.05)
-		var nx := 3 if rng.randf() < 0.6 else 2
-		var floors := 2
-		_house_k(mg, mt, Vector3(wp.x, h - 0.15, wp.y), face, nx, 2, floors, rng, wood_style)
+		_house_k(mg, mt, Vector3(wp.x, h - 0.15, wp.y), house_face[hi], house_nx[hi], 2, 2, rng, wood_style)
+		# barris e caixotes encostados em algumas casas
+		if rng.randf() < 0.35:
+			var hb := Basis(Vector3.UP, house_face[hi])
+			var pp := Vector3(wp.x, h, wp.y) + hb * Vector3(house_nx[hi] * 1.5 + 0.8, 0, -2.0)
+			mg.add(Assets.pirate("barrel" if rng.randf() < 0.5 else "crate"), Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * 0.9), pp), mp)
 	# igreja com torre
 	var cpos := town_center - Vector3(0, 0.15, 0) - Vector3(dir.x, 0, dir.y) * 24.0
-	_house_k(mg, mt, cpos, ang + PI * 0.5, 4, 2, 3, rng, false, M, true)
+	_house_k(mg, mt, cpos, ang, 4, 2, 3, rng, false, M, true)
 	var tpos := town_center - Vector3(0, 0.15, 0) - Vector3(dir.x, 0, dir.y) * 10.0
 	_house_k(mg, mt, tpos, ang, 1, 1, 6, rng, false, 3.6, true)
 	# taverna
@@ -357,8 +406,8 @@ func build() -> void:
 	for k in 2:
 		mg.add(Assets.pirate("boat-row-small"), Transform3D(db * Basis(Vector3.UP, 0.3 * k).scaled(Vector3.ONE * 2.2), cp + db * Vector3(6.5 + k * 3.0, 0.1, 20.0 + k * 9.0)), mp)
 	# armazéns do porto
-	for k in 3:
-		var wpos := cp + db * Vector3(-24 + k * 24, 0, -20)
+	for k in [-30.0, 30.0]:
+		var wpos := cp + db * Vector3(k, 0, -20)
 		var h2 := w.terrain_height(wpos.x, wpos.z)
 		_house_k(mg, mt, Vector3(wpos.x, maxf(h2, 1.0) - 0.15, wpos.z), ang + PI, 3, 2, 1, rng, true)
 		for j in 3:
@@ -395,19 +444,39 @@ func build() -> void:
 	fort_ruin = Node3D.new()
 	fort_ruin.position = fp + Vector3(0, 9, 0)
 	root.add_child(fort_ruin)
-	var streets: Array[PackedVector2Array] = [
-		PackedVector2Array([coast_point, tc]),
-		PackedVector2Array([tc, Vector2(fort_pos.x, fort_pos.z)]),
-		PackedVector2Array([tc, Vector2(stable_pos.x, stable_pos.z)]),
-	]
-	for st2 in streets:
-		var rm := road_mesh(w, st2, 6.0)
+	if _street_mat == null:
+		_street_mat = StandardMaterial3D.new()
+		_street_mat.albedo_color = Color(0.56, 0.52, 0.46)
+		_street_mat.roughness = 0.95
+	var all_streets: Array[PackedVector2Array] = streets.duplicate()
+	all_streets.append(PackedVector2Array([tc, Vector2(fort_pos.x, fort_pos.z)]))
+	all_streets.append(PackedVector2Array([tc, Vector2(stable_pos.x, stable_pos.z)]))
+	var lamps := Assets.Merger.new()
+	var lg := SurfaceTool.new()
+	lg.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for si in all_streets.size():
+		var st2 := all_streets[si]
+		var rm := road_mesh(w, st2, 9.0 if si == 0 else 7.0)
 		if rm:
 			var rmi := MeshInstance3D.new()
 			rmi.mesh = rm
-			rmi.material_override = Island._road_mat
+			rmi.material_override = _street_mat if si < streets.size() else Island._road_mat
 			rmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			root.add_child(rmi)
+		if si < streets.size():
+			for end in [st2[0], st2[1]]:
+				var lp := Vector3(end.x, w.terrain_height(end.x, end.y), end.y) + Vector3(4.5, 0, 4.5)
+				if w.terrain_height(lp.x, lp.z) > 1.0:
+					lamps.add(Assets.town("lantern"), Transform3D(Basis.from_scale(Vector3.ONE * 2.2), lp), mt)
+					ShipBuilder._box(lg, Transform3D(Basis(), lp + Vector3(0, 3.1, 0)), Vector3(0.3, 0.35, 0.3), Color(1, 1, 1))
+	var lmi := MeshInstance3D.new()
+	lmi.mesh = lamps.commit()
+	root.add_child(lmi)
+	var lgi := MeshInstance3D.new()
+	lgi.mesh = lg.commit()
+	lgi.material_override = ShipBuilder.glow_material()
+	lgi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(lgi)
 	# estábulo (estrutura de madeira do kit pirata)
 	var sb := Basis(Vector3.UP, ang + PI * 0.5)
 	var stable := Assets.Merger.new()

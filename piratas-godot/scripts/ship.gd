@@ -69,6 +69,14 @@ var ai_flee := false
 var ai_avoid := 0.0
 var ai_fire_delay := 0.0
 
+# armas extras (estilo Black Flag)
+const MORTAR_G := 30.0
+var brace_t := 0.0
+var brace_cd := 0.0
+var mortar_cd := 0.0
+var bow_cd := 0.0
+var crew_nodes: Array = []
+
 
 func setup(type_i: int, nat: int, r: int, player := false, flag := -1) -> void:
 	type_idx = type_i
@@ -91,6 +99,8 @@ func setup(type_i: int, nat: int, r: int, player := false, flag := -1) -> void:
 	wake = Wake.new(self)
 	add_child(wake)
 	if player:
+		_add_crew()
+	if player:
 		_lantern = OmniLight3D.new()
 		_lantern.light_color = Color(1.0, 0.7, 0.35)
 		_lantern.omni_range = 22.0
@@ -103,6 +113,28 @@ func setup(type_i: int, nat: int, r: int, player := false, flag := -1) -> void:
 		gold = int(def["price"] * _rng.randf_range(0.04, 0.12)) + (300 if role == Role.MERCHANT else 0)
 		var g: Dictionary = Game.GOODS[_rng.randi() % Game.GOODS.size()]
 		cargo[g["id"]] = int(def["cargo"] * _rng.randf_range(0.2, 0.6)) if role == Role.MERCHANT else _rng.randi_range(0, 10)
+
+
+## Marujos no convés (só no navio do jogador, para não pesar no celular).
+func _add_crew() -> void:
+	var rr := RandomNumberGenerator.new()
+	rr.seed = type_idx * 13 + 5
+	var spots := [0.28, 0.4, 0.52, 0.64, 0.74, 0.46]
+	var n := mini(spots.size(), 3 + type_idx)
+	for i in n:
+		var t: float = spots[i]
+		var side := -1.0 if i % 2 == 0 else 1.0
+		var x := side * ShipBuilder.half_width(t, beam) * rr.randf_range(0.25, 0.55)
+		var pc: Dictionary
+		if nation == Game.PIR or rr.randf() < 0.6:
+			pc = Assets.person("homem", rr, {"hat": [0, 2, 2, 3][rr.randi() % 4]})
+		else:
+			pc = Assets.soldier(nation, rr)
+		model["root"].add_child(pc["root"])
+		pc["root"].position = Vector3(x, ShipBuilder.deck_height(t, def), ShipBuilder.t_to_z(t, length))
+		pc["root"].rotation.y = PI * 0.5 * side + rr.randf_range(-0.6, 0.6)
+		Assets.play(pc, ["Idle", "Idle", "Clapping"][rr.randi() % 3])
+		crew_nodes.append(pc)
 
 
 func apply_player_stats() -> void:
@@ -175,6 +207,10 @@ func _physics_process(delta: float) -> void:
 		_ai(delta)
 	for s in reload:
 		reload[s] = maxf(0.0, reload[s] - delta)
+	brace_t = maxf(0.0, brace_t - delta)
+	brace_cd = maxf(0.0, brace_cd - delta)
+	mortar_cd = maxf(0.0, mortar_cd - delta)
+	bow_cd = maxf(0.0, bow_cd - delta)
 	var a := wind_angle_from_downwind()
 	var eff := sail_efficiency(a)
 	sail_actual = move_toward(sail_actual, sail_level, delta * 0.45)
@@ -405,6 +441,10 @@ func hit_test(a: Vector3, b: Vector3) -> Vector3:
 func take_hit(dmg: float, ammo_t: int, attacker: Object, point: Vector3, from_player: bool, attacker_nation: int) -> void:
 	if dead:
 		return
+	if is_player and World.I.ctl and World.I.ctl.on_land():
+		return
+	if brace_t > 0.0:
+		dmg *= 0.35
 	var l := global_transform.affine_inverse() * point
 	var high := l.y > ShipBuilder.deck_height(0.5, def) + 1.4
 	match ammo_t:
@@ -437,10 +477,118 @@ func take_hit(dmg: float, ammo_t: int, attacker: Object, point: Vector3, from_pl
 		die(from_player)
 
 
-func take_raw_damage(v: float) -> void:
+func take_raw_damage(v: float, by_player := false) -> void:
+	if brace_t > 0.0:
+		v *= 0.35
 	hp -= v
 	if hp <= 0.0 and not dead:
-		die(false)
+		die(by_player)
+
+
+# ------------------------------------------------------------------ armas extras
+## Segurar-se: por 1,4 s o casco recebe só 35% do dano (como o "brace" do Black Flag).
+func brace() -> void:
+	if brace_cd > 0.0 or dead:
+		return
+	brace_t = 1.4
+	brace_cd = 6.0
+	if is_player:
+		Game.notify("Segurem-se!", Color(0.9, 0.95, 1.0))
+		Sfx.play("bell", -12.0, 1.6)
+
+
+const BOW_RELOAD := 6.0
+const MORTAR_RELOAD := 14.0
+
+
+## Canhões de caça na proa: tiro de corrente que rasga velas e freia o alvo.
+func fire_bow() -> void:
+	if bow_cd > 0.0 or dead or crew < 3:
+		return
+	bow_cd = BOW_RELOAD
+	var f := forward()
+	var best: Ship = null
+	var bd := 420.0
+	for s in World.I.ships:
+		if s == self or s.dead:
+			continue
+		var d := s.pos2() - pos2()
+		if d.length() < bd and absf(f.angle_to(d)) < deg_to_rad(32.0) and (not is_player or World.I.hostile(self, s) or s.aggro_player):
+			bd = d.length()
+			best = s
+	var aim := f
+	var elev := deg_to_rad(3.0)
+	if best:
+		var tp := best.pos2() + Vector2(best.velocity.x, best.velocity.z) * (bd / MUZZLE)
+		aim = (tp - pos2()).normalized()
+		elev = Projectiles.solve_elevation(tp.distance_to(pos2()), -2.0, MUZZLE)
+	var n := 2 + (int(Game.upgrades["proa"]) if is_player else 0)
+	var bow := global_transform * Vector3(0.0, ShipBuilder.deck_height(0.95, def) + 0.8, -length * 0.48)
+	for i in n:
+		var d2 := aim.rotated(_rng.randf_range(-0.03, 0.03))
+		var v := Vector3(d2.x * cos(elev), sin(elev), d2.y * cos(elev)) * MUZZLE + velocity
+		Projectiles.I.fire(bow + Vector3(_rng.randf_range(-0.6, 0.6), 0, 0), v, self, flag_nation, 14.0 * dmg_mult, 1, is_player, {"slow": true})
+	Effects.I.emit("flash", bow, Vector3(f.x, 0.1, f.y))
+	Effects.I.emit("smoke", bow, Vector3(f.x, 0.2, f.y))
+	Sfx.play_at("cannon", bow, 2.0, 1.2)
+
+
+## Alvo para o morteiro: navio inimigo (150–620 m) ou forte inimigo. Retorna INF se não houver.
+func mortar_target() -> Vector3:
+	var best := Vector3.INF
+	var bd := 620.0
+	for s in World.I.ships:
+		if s == self or s.dead:
+			continue
+		var dist := s.pos2().distance_to(pos2())
+		if dist > 150.0 and dist < bd and (World.I.hostile(self, s) or s.aggro_player):
+			bd = dist
+			best = s.global_position
+			var flight := 2.0 * sqrt(dist * MORTAR_G / 0.866) * 0.866 / MORTAR_G
+			best += s.velocity * flight
+	if best == Vector3.INF:
+		for i in World.I.port_islands.size():
+			var fp := World.I.port_islands[i].fort_pos
+			var dist := Vector2(fp.x, fp.z).distance_to(pos2())
+			if dist < bd and dist > 120.0 and Game.port_fort_hp[i] > 0.0 and (Game.nation_hostile_to_player(Game.port_owner[i]) or World.I.port_aggro[i]):
+				bd = dist
+				best = fp + Vector3(0, 7.0, 0)
+	return best
+
+
+## Morteiro: bombas em arco alto que caem numa área (3 + nível).
+func fire_mortar(target: Vector3) -> void:
+	if mortar_cd > 0.0 or dead or target == Vector3.INF:
+		return
+	mortar_cd = MORTAR_RELOAD
+	var n := 2 + int(Game.upgrades["morteiro"]) if is_player else 3
+	var origin := global_transform * Vector3(0.0, ShipBuilder.deck_height(0.5, def) + 1.5, length * 0.05)
+	World.I.show_mortar_marker(target, 16.0)
+	for i in n:
+		var tp := target + Vector3(_rng.randf_range(-7, 7), 0, _rng.randf_range(-7, 7))
+		var to := Vector2(tp.x - origin.x, tp.z - origin.z)
+		var dist := maxf(to.length(), 30.0)
+		var e := deg_to_rad(60.0)
+		# alcance com diferença de altura: resolve v para ângulo fixo
+		var dy := tp.y - origin.y
+		var denom := 2.0 * cos(e) * cos(e) * (dist * tan(e) - dy)
+		var spd := sqrt(MORTAR_G * dist * dist / maxf(denom, 1.0))
+		var dn := to.normalized()
+		var v := Vector3(dn.x * cos(e), sin(e), dn.y * cos(e)) * spd
+		_fire_mortar_one.call_deferred(origin, v, i * 0.18)
+	Effects.I.emit("smoke", origin, Vector3.UP)
+	Sfx.play_at("cannon", origin, 6.0, 0.6)
+	if is_player:
+		World.I.shake(0.45)
+
+
+func _fire_mortar_one(o: Vector3, v: Vector3, delay: float) -> void:
+	if delay > 0.0:
+		await get_tree().create_timer(delay).timeout
+	if not is_inside_tree() or dead:
+		return
+	Projectiles.I.fire(o, v, self, flag_nation, 85.0 * dmg_mult, 0, is_player, {"g": MORTAR_G, "mortar": true})
+	Effects.I.emit("flash", o, Vector3.UP)
 
 
 func die(by_player: bool) -> void:
@@ -511,6 +659,14 @@ func _ai(delta: float) -> void:
 					fire(side)
 					ai_fire_delay = 1.0
 					break
+		if ai_fire_delay <= 0.0 and dist < 360.0 and absf(forward().angle_to(to)) < deg_to_rad(25.0) and bow_cd <= 0.0:
+			fire_bow()
+			ai_fire_delay = 1.0
+		# navios de guerra grandes usam morteiro de longe
+		if type_idx >= 3 and role != Role.MERCHANT and ai_fire_delay <= 0.0 and dist > 220.0 and dist < 560.0 and mortar_cd <= 0.0 and _rng.randf() < 0.02:
+			var flight := 2.0 * sqrt(dist * MORTAR_G / 0.866) * 0.866 / MORTAR_G
+			fire_mortar(ai_target.global_position + ai_target.velocity * flight)
+			mortar_cd = MORTAR_RELOAD * 1.6
 	else:
 		var to := ai_dest - p
 		if ai_flee and ai_target and is_instance_valid(ai_target):

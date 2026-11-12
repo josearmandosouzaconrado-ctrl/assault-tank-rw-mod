@@ -9,7 +9,7 @@ as casas, o forte, o cais e a vegetação usam modelos 3D gratuitos (CC0) da **K
 
 ## Baixar o APK
 
-APK pronto: [`apk/MaresDeFortuna-v1.6.apk`](../apk/MaresDeFortuna-v1.6.apk) (Android 7 ou superior).
+APK pronto: [`apk/MaresDeFortuna-v1.7.apk`](../apk/MaresDeFortuna-v1.7.apk) (Android 7 ou superior).
 
 Cada push na pasta `piratas-godot/` gera um APK pelo GitHub Actions (workflow *Mares de Fortuna (Godot) - APK*):
 
@@ -43,7 +43,11 @@ Como pirata, sua infâmia cresce (Marujo Rebelde → Rei dos Piratas) e caçador
 - **Exército**: contrate soldados na taverna. Eles lutam nas abordagens e invasões e seguem você em terra.
 - **Bebidas e moral**: pague rodadas de rum para a tripulação (moral alta recarrega os canhões mais rápido e vence abordagens) ou beba você mesmo, e o mundo balança.
 - **Romance**: em cada cidade há uma pessoa especial. Converse, dê presentes, convide para jantar e, com afeto máximo, peça em casamento.
-- **Combater** com bordadas. Há três munições: bala redonda (casco), bala corrente (velas) e metralha (tripulação).
+- **Combater** como no Black Flag: bordadas pelos costados (três munições: redonda, corrente e metralha), **canhões de proa** com corrente que freia o inimigo, **morteiros** de longe (o círculo vermelho mostra onde as bombas caem; os inimigos grandes também usam), **segurar-se** para receber menos dano e **abalroar** (melhor com o esporão de ferro).
+- **Combate a pé**: o capitão anda em terceira pessoa com mosquete. Em cidades inimigas (ou se você atirar numa cidade amiga) os guardas atacam; suas tropas atiram junto. Com o forte silenciado e todos os guardas derrubados, dá para **tomar a cidade** a pé.
+- **Alfaiate e armeiro**: roupas, cor da casaca, chapéus (tricórnio, lenço, abas largas, bicórnio) e armas (mosquete comum, pistolas, mosquete de precisão).
+- **Seu próprio reino**: com 2 cidades conquistadas e 15.000 moedas, funde um reino com nome e bandeira próprios; as cidades rendem impostos diários.
+- **Guerras entre nações**: de tempos em tempos uma nação ataca um porto inimigo. Perto dele, você vê a batalha naval e pode ajudar a atacar ou a defender; os portos mudam de dono.
 - **Abordar** navios avariados: saquear, afundar ou **tomar o navio** para você.
 - **Silenciar fortes e invadir cidades**. O porto passa a ser da sua nação, ou da Irmandade se você for pirata.
 - **Comerciar** 8 mercadorias, cada porto com produção e procura próprias.
@@ -58,6 +62,7 @@ Como pirata, sua infâmia cresce (Marujo Rebelde → Rei dos Piratas) e caçador
 
 Celular (horizontal):
 - **Joystick** (canto inferior esquerdo): esquerda/direita vira o navio (ele tem peso e vira aos poucos); empurre para cima para soltar mais vela e para baixo para recolher.
+- **PROA**, **MORTEIRO** e **SEGURAR**: armas extras e defesa (o morteiro aparece depois de comprado no estaleiro).
 - **Velas** (barra à direita): também dá para tocar direto em recolhidas, 1/3, 2/3 ou todas.
 - A câmera fica atrás do navio e volta sozinha para trás dele depois que você para de girá-la.
 - **BOMBORDO / ESTIBORDO**: dispara o costado da esquerda ou da direita. O anel mostra a recarga, e a mira ajuda a acertar o alvo mais próximo daquele lado.
@@ -67,7 +72,7 @@ Celular (horizontal):
 - A pé: joystick à esquerda e arrastar para olhar. O botão verde muda conforme o lugar: Conversar, Falar com..., Entrar na taverna, Montar no cavalo, Cavar ou Voltar ao navio.
 - A cavalo: joystick para frente acelera, para os lados vira; a câmera fica atrás do cavalo.
 
-Computador: `A/D` leme, `W/S` velas, `Q/E` canhões, `R` munição, `C` câmera, `Z` luneta, `F` ação, `M` mapa, `Esc` pausa. Arraste com o mouse para olhar e use a roda para o zoom.
+Computador: `A/D` leme, `W/S` velas, `Q/E` canhões, `G` proa, `T` morteiro, `B` segurar, `X` mosquete, `R` munição, `C` câmera, `Z` luneta, `F` ação, `M` mapa, `Esc` pausa. Arraste com o mouse para olhar e use a roda para o zoom.
 
 ## Abrir no editor
 

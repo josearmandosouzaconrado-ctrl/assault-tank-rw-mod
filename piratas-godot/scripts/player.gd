@@ -36,6 +36,13 @@ var _rider: Dictionary = {}
 var town: TownLife
 var followers: Array = []
 var _horse_cam_yaw := 0.0
+var avatar: Dictionary = {}
+var avatar_yaw := 0.0
+var hp := 100.0
+var _hurt_t := 0.0
+var musket_cd := 0.0
+var _shoot_anim := 0.0
+var hud_ref: Node
 
 
 func _ready() -> void:
@@ -71,7 +78,7 @@ func look(d: Vector2) -> void:
 			helm_pitch = clampf(helm_pitch - d.y * k, -0.8, 0.6)
 		Mode.FOOT:
 			foot_yaw -= d.x * k
-			foot_pitch = clampf(foot_pitch - d.y * k, -1.3, 1.3)
+			foot_pitch = clampf(foot_pitch - d.y * k, -1.1, 0.45)
 
 
 func cycle_camera() -> void:
@@ -109,7 +116,9 @@ func go_ashore(p: Vector2) -> void:
 	var sp := w.player.pos2()
 	var away := (p - sp).normalized()
 	foot_yaw = atan2(-away.x, -away.y)
-	foot_pitch = 0.0
+	avatar_yaw = foot_yaw
+	foot_pitch = -0.2
+	_make_avatar()
 	w.player.sail_level = 0.0
 	w.player.rudder = 0.0
 	sail_target = 0.0
@@ -122,6 +131,8 @@ func return_to_ship() -> void:
 		dismount()
 	mode = _prev_mode if not (_prev_mode == Mode.FOOT or _prev_mode == Mode.HORSE) else Mode.THIRD
 	digging = 0.0
+	_free_avatar()
+	hp = 100.0
 	for f in followers:
 		f["root"].queue_free()
 	followers.clear()
@@ -143,7 +154,8 @@ func mount(h: Horse) -> void:
 	World.I.add_child(h)
 	h.global_position = gp
 	var rr := RandomNumberGenerator.new()
-	_rider = Assets.person("oficial", rr)
+	_rider = Assets.captain(rr, false)
+	_free_avatar()
 	h.add_child(_rider["root"])
 	# costas do cavalo a ~1,38 m; quadril do capitão sentado fica 0,43 m acima dos pés
 	_rider["root"].position = Vector3(0, 1.0, 0.2)
@@ -167,8 +179,10 @@ func dismount() -> void:
 	var p := Vector2(horse.global_position.x, horse.global_position.z) - side * 1.6
 	foot_pos = Vector3(p.x, World.I.walk_height(p.x, p.y), p.y)
 	foot_yaw = horse.yaw
+	avatar_yaw = horse.yaw
 	horse = null
 	mode = Mode.FOOT
+	_make_avatar()
 
 
 func near_horse() -> Horse:
@@ -186,10 +200,11 @@ func _spawn_followers() -> void:
 	var rr := RandomNumberGenerator.new()
 	rr.seed = 7
 	for i in n:
-		var p := Assets.person("homem" if Game.career == Game.PIR else "oficial", rr)
+		var p := Assets.soldier(Game.career, rr)
 		World.I.add_child(p["root"])
 		p["root"].global_position = foot_pos + Vector3(i - n * 0.5, 0, 3)
 		p["phase"] = 0.0
+		p["cd"] = rr.randf_range(1.0, 3.0)
 		followers.append(p)
 
 
@@ -211,8 +226,27 @@ func _update_followers(delta: float, leader: Vector3, lyaw: float) -> void:
 			root.rotation.y = lerp_angle(root.rotation.y, atan2(-d.x, -d.y), delta * 6.0)
 			p["phase"] += delta * 7.0
 		root.global_position = Vector3(pos.x, w.walk_height(pos.x, pos.y), pos.y)
-		if moving:
+		# as tropas atiram nos guardas inimigos
+		p["cd"] = float(p.get("cd", 2.0)) - delta
+		var aimed := false
+		if town and p["cd"] <= 0.0:
+			var g := town.nearest_enemy(root.global_position, 40.0)
+			if not g.is_empty():
+				p["cd"] = _rng.randf_range(2.5, 4.0)
+				var gp: Vector3 = g["p"]["root"].global_position
+				var to := gp - root.global_position
+				root.rotation.y = atan2(-to.x, -to.z)
+				Assets.play(p, "Punch", 1.4)
+				_musket_fx(root.global_position + Vector3(0, 1.3, 0), to.normalized())
+				if _rng.randf() < 0.4:
+					town.kill(g)
+				aimed = true
+		if aimed:
+			pass
+		elif moving:
 			Assets.play(p, "Run" if d.length() > 4.0 else "Walk")
+		elif p["cur"].ends_with("Punch") and p["ap"].is_playing():
+			pass
 		else:
 			Assets.play(p, "Idle")
 
@@ -273,9 +307,13 @@ func _process(delta: float) -> void:
 	Game.drunk = maxf(0.0, Game.drunk - delta)
 	if on_land():
 		_update_town()
+	musket_cd = maxf(0.0, musket_cd - delta)
+	_hurt_t += delta
+	if _hurt_t > 6.0 and hp < 100.0:
+		hp = minf(100.0, hp + delta * 4.0)
 	if mode == Mode.FOOT:
 		_foot(delta)
-		_update_followers(delta, foot_pos, foot_yaw)
+		_update_followers(delta, foot_pos, avatar_yaw)
 	elif mode == Mode.HORSE:
 		_ride(delta)
 		_update_followers(delta, horse.global_position, horse.yaw)
@@ -386,6 +424,87 @@ func _ride(delta: float) -> void:
 	cam.look_at(target, Vector3.UP)
 
 
+func _make_avatar() -> void:
+	_free_avatar()
+	var rr := RandomNumberGenerator.new()
+	avatar = Assets.captain(rr, true)
+	World.I.add_child(avatar["root"])
+	avatar["root"].global_position = foot_pos
+	avatar["root"].rotation.y = avatar_yaw
+
+
+func _free_avatar() -> void:
+	if not avatar.is_empty() and is_instance_valid(avatar["root"]):
+		avatar["root"].queue_free()
+	avatar = {}
+
+
+func musket_frac() -> float:
+	var r: float = Assets.MUSKETS[clampi(Game.musket, 0, 2)]["reload"]
+	return clampf(1.0 - musket_cd / r, 0.0, 1.0)
+
+
+func _musket_fx(from: Vector3, dir: Vector3) -> void:
+	Effects.I.emit("flash", from + dir * 0.9, dir)
+	Effects.I.emit("smoke", from + dir * 0.9, dir)
+	Sfx.play_at("cannon", from, -10.0, 2.6)
+
+
+## Dispara o mosquete no guarda inimigo mais próximo na direção da câmera.
+func shoot_musket() -> void:
+	if mode != Mode.FOOT or musket_cd > 0.0 or avatar.is_empty() or digging > 0.0:
+		return
+	var m: Dictionary = Assets.MUSKETS[clampi(Game.musket, 0, 2)]
+	musket_cd = m["reload"]
+	var fwd := Vector3(-sin(foot_yaw), 0, -cos(foot_yaw))
+	var target := {}
+	var bd: float = m["range"]
+	if town:
+		for e in town.people:
+			if not e.get("alive", true) or e["kind"] != "guarda":
+				continue
+			var gp: Vector3 = e["p"]["root"].global_position
+			var to := gp - foot_pos
+			var d := to.length()
+			if d < bd and fwd.angle_to(Vector3(to.x, 0, to.z)) < deg_to_rad(40.0):
+				bd = d
+				target = e
+	var dir := fwd
+	if not target.is_empty():
+		var tp: Vector3 = target["p"]["root"].global_position
+		dir = (tp - foot_pos).normalized()
+	avatar_yaw = atan2(-dir.x, -dir.z)
+	avatar["root"].rotation.y = avatar_yaw
+	Assets.play(avatar, "Punch", 1.5)
+	_shoot_anim = 0.6
+	_musket_fx(foot_pos + Vector3(0, 1.35, 0), dir)
+	if target.is_empty():
+		return
+	town.provoke()
+	var hit_chance: float = m["acc"] * (1.0 - 0.45 * bd / m["range"])
+	if _rng.randf() < hit_chance:
+		town.kill(target)
+	else:
+		Game.notify("Errou!", Color(1, 1, 1, 0.8))
+
+
+## Ferimento a pé (tiros dos guardas).
+func foot_hit(dmg: float) -> void:
+	if not on_land():
+		return
+	hp -= dmg
+	_hurt_t = 0.0
+	shake(0.2)
+	if hud_ref:
+		hud_ref.flash_damage()
+	if hp <= 0.0:
+		hp = 100.0
+		var lost := int(Game.gold * 0.1)
+		Game.gold -= lost
+		Game.notify("Você foi ferido! A tripulação o levou de volta ao navio (-%d moedas)." % lost, Color(1, 0.4, 0.3))
+		return_to_ship()
+
+
 func _foot(delta: float) -> void:
 	var w := World.I
 	var mv := move_vec
@@ -398,37 +517,54 @@ func _foot(delta: float) -> void:
 	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
 		mv.x += 1.0
 	mv = mv.limit_length(1.0)
+	_shoot_anim = maxf(0.0, _shoot_anim - delta)
 	if digging > 0.0:
 		mv = Vector2.ZERO
 		var before := digging
 		digging -= delta
 		if int(before * 2.5) != int(digging * 2.5):
 			Sfx.play("dig")
+			if not avatar.is_empty():
+				avatar["cur"] = ""
+				Assets.play(avatar, "Punch", 1.3)
 		if digging <= 0.0:
 			_finish_dig()
+	# movimento relativo à câmera; o capitão vira para onde anda
 	var fwd := Vector2(-sin(foot_yaw), -cos(foot_yaw))
 	var right := Vector2(-fwd.y, fwd.x)
-	var step := (fwd * mv.y + right * mv.x) * 6.5 * delta
+	var wdir := fwd * mv.y + right * mv.x
+	var spd := 2.6 if mv.length() < 0.65 else 6.2
+	var step := wdir * spd * delta
 	var np := Vector2(foot_pos.x, foot_pos.z) + step
 	var h := w.walk_height(np.x, np.y)
 	var h0 := w.walk_height(foot_pos.x, foot_pos.z)
 	if h > -1.1 and h - h0 < 1.2 and not w.building_blocked(np.x, np.y):
 		foot_pos = Vector3(np.x, h, np.y)
 	elif step.length() > 0.0:
-		# desliza ao longo do obstáculo
 		for alt in [Vector2(step.x, 0.0), Vector2(0.0, step.y)]:
 			var ap: Vector2 = Vector2(foot_pos.x, foot_pos.z) + alt
 			var ah := w.walk_height(ap.x, ap.y)
 			if ah > -1.1 and ah - h0 < 1.2 and not w.building_blocked(ap.x, ap.y):
 				foot_pos = Vector3(ap.x, ah, ap.y)
 				break
-	if step.length() > 0.001:
-		_bob += step.length() * 1.6
-	var eye := foot_pos + Vector3(0, 1.7 + sin(_bob) * 0.06 - (0.4 if digging > 0.0 else 0.0), 0)
-	eye.y = maxf(eye.y, Ocean.height_at(eye.x, eye.z) + 0.5)
-	cam.global_position = eye
-	var pitch := foot_pitch - (0.6 + sin(digging * 9.0) * 0.1 if digging > 0.0 else 0.0)
-	cam.global_basis = Basis.from_euler(Vector3(pitch, foot_yaw, 0.0))
+	if not avatar.is_empty():
+		var root: Node3D = avatar["root"]
+		root.global_position = foot_pos
+		if wdir.length() > 0.05:
+			avatar_yaw = lerp_angle(avatar_yaw, atan2(-wdir.x, -wdir.y), 1.0 - exp(-delta * 10.0))
+			if _shoot_anim <= 0.0:
+				Assets.play(avatar, "Run" if spd > 3.0 else "Walk", 1.0 if spd > 3.0 else 1.1)
+		elif _shoot_anim <= 0.0 and digging <= 0.0:
+			Assets.play(avatar, "Idle")
+		root.rotation.y = avatar_yaw
+	# câmera de terceira pessoa por cima do ombro
+	var target := foot_pos + Vector3(0, 1.55, 0)
+	var dirc := Vector3(sin(foot_yaw) * cos(foot_pitch), -sin(foot_pitch), cos(foot_yaw) * cos(foot_pitch))
+	var side := Vector3(cos(foot_yaw), 0, -sin(foot_yaw)) * 0.55
+	var want := target + dirc * 4.2 * zoom + side
+	want.y = maxf(want.y, maxf(w.terrain_height(want.x, want.z), Ocean.height_at(want.x, want.z)) + 0.6)
+	cam.global_position = want
+	cam.look_at(target + side * 0.6 - dirc * 2.0, Vector3.UP)
 
 
 func _finish_dig() -> void:

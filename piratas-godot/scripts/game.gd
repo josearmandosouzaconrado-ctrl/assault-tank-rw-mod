@@ -8,9 +8,9 @@ const SAVE_PATH := "user://mares_save.json"
 const WORLD_HALF := 12000.0
 
 # ---------------------------------------------------------------- Nações
-enum { ENG, ESP, FRA, HOL, POR, PIR }
+enum { ENG, ESP, FRA, HOL, POR, PIR, KIN }
 
-const NATIONS := [
+var NATIONS := [
 	{"name": "Grã-Bretanha", "navy": "Marinha Real Britânica", "adj": "britânico",
 		"color": Color(0.80, 0.12, 0.15), "hull": Color(0.2, 0.16, 0.12), "stripe": Color(0.85, 0.66, 0.25),
 		"sail": Color(0.93, 0.91, 0.84), "flag": 0, "alliance": 0},
@@ -29,6 +29,9 @@ const NATIONS := [
 	{"name": "Piratas", "navy": "Irmandade da Costa", "adj": "pirata",
 		"color": Color(0.15, 0.15, 0.15), "hull": Color(0.34, 0.24, 0.15), "stripe": Color(0.42, 0.08, 0.06),
 		"sail": Color(0.3, 0.28, 0.26), "flag": 5, "alliance": 2},
+	{"name": "Seu Reino", "navy": "Armada Real", "adj": "do seu reino",
+		"color": Color(0.5, 0.1, 0.42), "hull": Color(0.22, 0.12, 0.2), "stripe": Color(0.85, 0.66, 0.2),
+		"sail": Color(0.93, 0.9, 0.84), "flag": 6, "alliance": 3},
 ]
 
 const NAVY_RANKS := ["Aspirante", "Tenente", "Capitão de Fragata", "Capitão de Mar e Guerra", "Comodoro", "Almirante"]
@@ -57,6 +60,9 @@ const UPGRADES := [
 	{"id": "velas", "name": "Velas de lona fina", "desc": "+6% de velocidade por nível", "price": 2200},
 	{"id": "canhoes", "name": "Canhões de bronze", "desc": "+15% de dano por nível", "price": 3000},
 	{"id": "artilheiros", "name": "Artilheiros treinados", "desc": "-12% no tempo de recarga por nível", "price": 2800},
+	{"id": "morteiro", "name": "Morteiros", "desc": "nível 1 libera o morteiro (alcance 600 m); +1 bomba por nível", "price": 4000},
+	{"id": "proa", "name": "Canhões de proa", "desc": "+1 tiro de corrente pela proa por nível (freia o inimigo)", "price": 2600},
+	{"id": "esporao", "name": "Esporão de ferro", "desc": "+40% de dano ao abalroar e menos dano no próprio casco", "price": 2400},
 ]
 
 const AMMO := ["Bala redonda", "Bala corrente", "Metralha"]
@@ -106,9 +112,11 @@ var hull_hp := 320.0
 var sail_hp := 100.0
 var crew := 30
 var cargo := {}              # id -> quantidade
-var upgrades := {"casco": 0, "velas": 0, "canhoes": 0, "artilheiros": 0}
+var upgrades := {"casco": 0, "velas": 0, "canhoes": 0, "artilheiros": 0, "morteiro": 0, "proa": 0, "esporao": 0}
 var ammo := 0
-var rep := [0, 0, 0, 0, 0, 0]  # -100..100 por nação
+var rep := [0, 0, 0, 0, 0, 0, 0]  # -100..100 por nação
+var kingdom_name := ""      # nome do reino fundado pelo jogador
+var conquered: Array = []    # portos tomados pelo jogador
 var merit := 0               # mérito (marinha) ou infâmia (pirata)
 var bounty := 0
 var day := 1
@@ -130,6 +138,10 @@ var romance := {}            # índice do porto (texto) -> afeto 0..100
 var romance_day := {}        # último dia de conversa por porto
 var spouse := -1             # porto onde mora quem casou com você
 var drunk := 0.0             # segundos de bebedeira (efeito visual)
+var outfit := 0              # roupa do capitão (Assets.OUTFITS)
+var coat_color := 1          # cor da casaca (Assets.COAT_COLORS)
+var hat := 1                 # chapéu (Assets.HATS)
+var musket := 0              # arma de fogo (Assets.MUSKETS)
 
 const ROMANCE_NAMES := [
 	["Anne", "Thomas"], ["Isabel", "Diego"], ["Margot", "Étienne"], ["Saskia", "Joost"],
@@ -162,9 +174,12 @@ func new_game(chosen_career: int, cname: String) -> void:
 	captain_name = cname if cname.strip_edges() != "" else "Capitão"
 	career = chosen_career
 	reset_ports()
-	rep = [0, 0, 0, 0, 0, 0]
+	rep = [0, 0, 0, 0, 0, 0, 0]
+	kingdom_name = ""
+	conquered = []
+	_apply_kingdom_name()
 	cargo = {}
-	upgrades = {"casco": 0, "velas": 0, "canhoes": 0, "artilheiros": 0}
+	upgrades = {"casco": 0, "velas": 0, "canhoes": 0, "artilheiros": 0, "morteiro": 0, "proa": 0, "esporao": 0}
 	merit = 0
 	bounty = 0
 	day = 1
@@ -226,7 +241,51 @@ func dock_offset(port_idx: int) -> Vector2:
 
 
 func is_navy() -> bool:
-	return career != PIR
+	return career != PIR and career != KIN
+
+
+func has_kingdom() -> bool:
+	return kingdom_name != ""
+
+
+func nation_count() -> int:
+	return 7 if has_kingdom() else 6
+
+
+func _apply_kingdom_name() -> void:
+	var nm := kingdom_name if kingdom_name != "" else "Seu Reino"
+	NATIONS[KIN]["name"] = nm
+	NATIONS[KIN]["navy"] = "Armada de " + nm
+	NATIONS[KIN]["adj"] = "de " + nm
+
+
+## Fundar o próprio reino com os portos que o jogador conquistou.
+func found_kingdom(nm: String) -> int:
+	kingdom_name = nm.strip_edges() if nm.strip_edges() != "" else "Reino de " + captain_name
+	_apply_kingdom_name()
+	var old := career
+	career = KIN
+	false_flag = -1
+	gold -= 15000
+	var n := 0
+	for i in conquered:
+		if port_owner[i] == old:
+			port_owner[i] = KIN
+			n += 1
+	if old != PIR:
+		change_rep(old, -40)
+	rep[KIN] = 100
+	notify("Nasce %s! %d cidade(s) agora são suas." % [kingdom_name, n], Color(1, 0.85, 0.3))
+	state_changed.emit()
+	return n
+
+
+func kingdom_ports() -> int:
+	var n := 0
+	for o in port_owner:
+		if o == KIN:
+			n += 1
+	return n
 
 
 func rank_index() -> int:
@@ -242,6 +301,8 @@ func rank_name() -> String:
 
 
 func career_title() -> String:
+	if career == KIN:
+		return "%s de %s" % ["Rainha" if Assets.OUTFITS[outfit]["id"].contains("Female") else "Rei", kingdom_name]
 	if is_navy():
 		return "%s da %s" % [rank_name(), NATIONS[career]["navy"]]
 	return rank_name()
@@ -271,13 +332,15 @@ func are_enemies(a: int, b: int) -> bool:
 
 ## A nação `n` é hostil ao jogador?
 func nation_hostile_to_player(n: int) -> bool:
+	if n == KIN and career == KIN:
+		return false
 	if false_flag == PIR:
 		return n != PIR
 	if n == PIR:
 		return career != PIR and rep[PIR] < 20
 	if false_flag >= 0 and not are_enemies(n, false_flag):
 		return false
-	if career == PIR:
+	if career == PIR or career == KIN:
 		return rep[n] < 10
 	if rep[n] <= -40:
 		return true
@@ -455,6 +518,10 @@ func _new_day() -> void:
 	notify(txt, Color(0.9, 0.85, 0.6))
 	if career == PIR and bounty > 0:
 		bounty = int(bounty * 0.97)
+	if career == KIN:
+		var tax := kingdom_ports() * 700
+		gold += tax
+		notify("Impostos de %s: +%d moedas (%d cidades)." % [kingdom_name, tax, kingdom_ports()], Color(1, 0.85, 0.4))
 	state_changed.emit()
 
 
@@ -466,6 +533,8 @@ func to_dict() -> Dictionary:
 		"rep": rep, "merit": merit, "bounty": bounty, "day": day, "tod": time_of_day,
 		"owners": port_owner, "forts": port_fort_hp, "mission": _vec_to_arr(mission), "treasure": _vec_to_arr(treasure),
 		"px": player_pos.x, "pz": player_pos.y, "yaw": player_yaw, "stats": stats,
+		"kingdom": kingdom_name, "conquered": conquered,
+		"outfit": outfit, "coat_color": coat_color, "hat": hat, "musket": musket,
 		"morale": morale, "soldiers": soldiers, "romance": romance, "romance_day": romance_day, "spouse": spouse,
 	}
 
@@ -524,7 +593,13 @@ func load_game() -> bool:
 		upgrades[k] = int(u.get(k, 0))
 	ammo = int(d.get("ammo", 0))
 	var r: Array = d.get("rep", [])
-	for i in mini(r.size(), 6):
+	rep = [0, 0, 0, 0, 0, 0, 0]
+	kingdom_name = str(d.get("kingdom", ""))
+	_apply_kingdom_name()
+	conquered = []
+	for cq in d.get("conquered", []):
+		conquered.append(int(cq))
+	for i in mini(r.size(), 7):
 		rep[i] = int(r[i])
 	merit = int(d.get("merit", 0))
 	bounty = int(d.get("bounty", 0))
@@ -545,6 +620,10 @@ func load_game() -> bool:
 	for k in stats:
 		stats[k] = int(st.get(k, 0))
 	false_flag = -1
+	outfit = int(d.get("outfit", 0))
+	coat_color = int(d.get("coat_color", 1))
+	hat = int(d.get("hat", 1))
+	musket = int(d.get("musket", 0))
 	morale = float(d.get("morale", 70.0))
 	soldiers = int(d.get("soldiers", 0))
 	romance = d.get("romance", {})

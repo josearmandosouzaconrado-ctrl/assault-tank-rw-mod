@@ -62,7 +62,7 @@ func _build() -> void:
 	var tabs := HBoxContainer.new()
 	tabs.add_theme_constant_override("separation", 8)
 	vb.add_child(tabs)
-	for t in [["mercado", "Mercado"], ["estaleiro", "Estaleiro"], ["taverna", "Taverna"], ["missoes", "Missões"], ["governo", "Governo"]]:
+	for t in [["mercado", "Mercado"], ["estaleiro", "Estaleiro"], ["equipamento", "Alfaiate"], ["taverna", "Taverna"], ["missoes", "Missões"], ["governo", "Governo"]]:
 		var b := UiStyle.button(t[1], 50, 18)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var id: String = t[0]
@@ -103,6 +103,7 @@ func _show_tab(id: String) -> void:
 	match id:
 		"mercado": _market()
 		"estaleiro": _shipyard()
+		"equipamento": _equipment()
 		"taverna": _tavern()
 		"missoes": _missions()
 		"governo": _government()
@@ -258,6 +259,62 @@ func _buy_ship(i: int, c: int) -> void:
 				Game.cargo.erase(k)
 	Game.notify("Você comprou um(a) %s!" % Game.SHIPS[i]["name"], Color(0.5, 1, 0.5))
 	Sfx.play("bell")
+
+
+# ---------------------------------------------------------------- alfaiate e armeiro
+func _equipment() -> void:
+	content.add_child(UiStyle.label("Roupa atual: %s (%s), %s, %s." % [Assets.OUTFITS[Game.outfit]["name"], Assets.COAT_COLORS[Game.coat_color][0],
+		Assets.HATS[Game.hat]["name"], Assets.MUSKETS[Game.musket]["name"]], 18, UiStyle.GOLD))
+	content.add_child(UiStyle.label("Roupas", 19, UiStyle.GOLD))
+	for i in Assets.OUTFITS.size():
+		var o: Dictionary = Assets.OUTFITS[i]
+		var idx := i
+		_row([_lbl(o["name"]), _btn("Vestindo" if Game.outfit == i else "%d moedas" % o["price"], func(): _buy_outfit(idx), Game.outfit != i and Game.gold >= int(o["price"]), 200)])
+	content.add_child(UiStyle.label("Cor da casaca (60 moedas)", 19, UiStyle.GOLD))
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 6)
+	content.add_child(h)
+	for i in Assets.COAT_COLORS.size():
+		var c: Array = Assets.COAT_COLORS[i]
+		var idx := i
+		var b := _btn(c[0], func(): _buy_color(idx), Game.coat_color != i and Game.gold >= 60, 0)
+		b.add_theme_color_override("font_color", (c[1] as Color).lightened(0.35))
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		h.add_child(b)
+	content.add_child(UiStyle.label("Chapéus", 19, UiStyle.GOLD))
+	for i in Assets.HATS.size():
+		var o: Dictionary = Assets.HATS[i]
+		var idx := i
+		_row([_lbl(o["name"]), _btn("Usando" if Game.hat == i else "%d moedas" % o["price"], func(): _buy_hat(idx), Game.hat != i and Game.gold >= int(o["price"]), 200)])
+	content.add_child(UiStyle.label("Armeiro — armas de fogo (usadas a pé)", 19, UiStyle.GOLD))
+	for i in Assets.MUSKETS.size():
+		var o: Dictionary = Assets.MUSKETS[i]
+		var idx := i
+		var desc := "%s — recarga %.1f s, precisão %d%%, alcance %d m" % [o["name"], o["reload"], int(o["acc"] * 100), int(o["range"])]
+		_row([_lbl(desc, 0, 16), _btn("Equipado" if Game.musket == i else "%d moedas" % o["price"], func(): _buy_musket(idx), Game.musket != i and Game.gold >= int(o["price"]), 200)])
+	content.add_child(UiStyle.label("Armamento do navio (morteiros, canhões de proa, esporão) fica no Estaleiro.", 15, Color(0.8, 0.75, 0.6)))
+
+
+func _buy_outfit(i: int) -> void:
+	Game.gold -= int(Assets.OUTFITS[i]["price"])
+	Game.outfit = i
+	Game.notify("Nova roupa: %s." % Assets.OUTFITS[i]["name"], Color(1, 0.9, 0.6))
+
+
+func _buy_color(i: int) -> void:
+	Game.gold -= 60
+	Game.coat_color = i
+
+
+func _buy_hat(i: int) -> void:
+	Game.gold -= int(Assets.HATS[i]["price"])
+	Game.hat = i
+
+
+func _buy_musket(i: int) -> void:
+	Game.gold -= int(Assets.MUSKETS[i]["price"])
+	Game.musket = i
+	Sfx.play("coin", -6.0)
 
 
 # ---------------------------------------------------------------- taverna
@@ -450,11 +507,38 @@ func _government() -> void:
 	for n in 6:
 		rep_txt += "%s: %d   " % [Game.NATIONS[n]["name"], Game.rep[n]]
 	content.add_child(UiStyle.label("Reputação — " + rep_txt, 16, Color(0.85, 0.8, 0.65)))
+	var w := World.I
+	if not w.war.is_empty():
+		content.add_child(UiStyle.label("Guerra em curso: a frota %s ataca %s." % [Game.NATIONS[w.war["att"]]["adj"], Game.PORTS_DEF[w.war["port"]]["name"]], 17, Color(1, 0.55, 0.4)))
+	# reino do jogador
+	if Game.career == Game.KIN:
+		content.add_child(UiStyle.label("%s — %d cidade(s), impostos de %d moedas por dia." % [Game.kingdom_name, Game.kingdom_ports(), Game.kingdom_ports() * 700], 20, UiStyle.GOLD))
+		if owner == Game.KIN:
+			var cost := int((Game.fort_max_hp() - Game.port_fort_hp[port]) * 1.5)
+			_row([_lbl("Reconstruir e reforçar o forte desta cidade"), _btn("%d moedas" % cost, func(): _fort_repair(cost), cost > 0 and Game.gold >= cost, 220)])
+			_row([_lbl("Recrutar 20 soldados do reino (sem custo de taverna)"), _btn("600 moedas", func(): _kingdom_troops(), Game.gold >= 600 and Game.soldiers < Game.max_soldiers(), 220)])
+	else:
+		var mine := 0
+		for i in Game.conquered:
+			if Game.port_owner[i] == Game.career:
+				mine += 1
+		if mine >= 2:
+			content.add_child(UiStyle.label("Você controla %d cidades conquistadas. Pode fundar o seu próprio reino (15.000 moedas): elas passam a ser suas, rendem impostos e terão a sua bandeira." % mine, 17, UiStyle.GOLD))
+			var le := LineEdit.new()
+			le.placeholder_text = "Nome do reino"
+			le.text = "Reino de " + Game.captain_name
+			le.custom_minimum_size = Vector2(320, 48)
+			le.add_theme_font_size_override("font_size", 18)
+			_row([le, _btn("Fundar reino", func(): _found(le.text), Game.gold >= 15000, 220)])
+		else:
+			content.add_child(UiStyle.label("Conquiste pelo menos 2 cidades (forte silenciado + invasão) para poder fundar o seu próprio reino.", 15, Color(0.8, 0.75, 0.6)))
 	content.add_child(UiStyle.label("Sua carreira: %s.  %s: %d%s" % [Game.career_title(), "Mérito" if Game.is_navy() else "Infâmia", Game.merit,
 		("   Recompensa pela sua cabeça: %d" % Game.bounty) if Game.bounty > 0 else ""], 18, UiStyle.GOLD))
 	var ri := Game.rank_index()
 	if ri < Game.RANK_MERIT.size() - 1:
 		content.add_child(UiStyle.label("Próximo posto (%s) com %d pontos." % [(Game.NAVY_RANKS if Game.is_navy() else Game.PIRATE_RANKS)[ri + 1], Game.RANK_MERIT[ri + 1]], 16))
+	if owner == Game.KIN:
+		return
 	if owner == Game.PIR:
 		content.add_child(UiStyle.label("Esta é uma cidade da Irmandade da Costa. Aqui não há reis nem almirantes.", 18))
 		if Game.is_navy():
@@ -477,11 +561,35 @@ func _government() -> void:
 		content.add_child(UiStyle.label("A %s não aceita você (reputação %d)." % [navy, Game.rep[owner]], 17, Color(1, 0.6, 0.5)))
 
 
+func _found(nm: String) -> void:
+	Game.found_kingdom(nm)
+	var w := World.I
+	for i in w.port_islands.size():
+		w.port_islands[i].set_owner_flag(Game.port_owner[i])
+	w.player.flag_nation = Game.KIN
+	w.player.set_flag(Game.NATIONS[Game.KIN]["flag"])
+	Sfx.play("bell")
+	Game.save_game()
+	_build()
+	_show_tab(tab)
+
+
+func _fort_repair(c: int) -> void:
+	Game.gold -= c
+	Game.port_fort_hp[port] = Game.fort_max_hp()
+
+
+func _kingdom_troops() -> void:
+	Game.gold -= 600
+	Game.soldiers = mini(Game.max_soldiers(), Game.soldiers + 20)
+
+
 func _go_pirate() -> void:
 	Game.turn_pirate()
 	World.I.player.flag_nation = Game.PIR
 	World.I.player.set_flag(Game.NATIONS[Game.PIR]["flag"])
 	_build()
+	_show_tab(tab)
 
 
 func _crown_ship(t: int) -> void:
@@ -500,6 +608,7 @@ func _enlist(n: int) -> void:
 	Game.enlist(n)
 	World.I.change_player_ship(maxi(Game.ship_type, 1))
 	_build()
+	_show_tab(tab)
 
 
 func _close() -> void:

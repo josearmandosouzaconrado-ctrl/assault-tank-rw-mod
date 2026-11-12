@@ -22,6 +22,10 @@ var fire_l: RoundBtn
 var fire_r: RoundBtn
 var action_btn: RoundBtn
 var small_btns: Array = []
+var mortar_btn: RoundBtn
+var bow_btn: RoundBtn
+var brace_btn: RoundBtn
+var musket_btn: RoundBtn
 var status: StatusPanel
 var compass: CompassCtl
 var minimap: MiniMap
@@ -248,8 +252,13 @@ class StatusPanel extends Control:
 		var f := ThemeDB.fallback_font
 		draw_string(f, Vector2(12, 24), "%s" % Game.career_title(), HORIZONTAL_ALIGNMENT_LEFT, size.x - 20, 15, GOLD)
 		draw_string(f, Vector2(12, 46), "Ouro: %d   Tripulação: %d/%d   Tropas: %d   Moral: %d%%" % [Game.gold, s.crew, s.max_crew, Game.soldiers, int(Game.morale)], HORIZONTAL_ALIGNMENT_LEFT, size.x - 16, 14, Color.WHITE)
-		_bar(54, "Casco", s.hp / s.max_hp, Color(0.85, 0.25, 0.2).lerp(Color(0.3, 0.8, 0.3), s.hp / s.max_hp))
-		_bar(72, "Velas", s.sail_hp / 100.0, Color(0.9, 0.88, 0.75))
+		var pc: PlayerController = w.ctl
+		if pc and pc.on_land():
+			_bar(54, "Vida", pc.hp / 100.0, Color(0.85, 0.2, 0.2).lerp(Color(0.3, 0.8, 0.3), pc.hp / 100.0))
+			_bar(72, "Mosquete", pc.musket_frac(), Color(0.9, 0.75, 0.4))
+		else:
+			_bar(54, "Casco", s.hp / s.max_hp, Color(0.85, 0.25, 0.2).lerp(Color(0.3, 0.8, 0.3), s.hp / s.max_hp))
+			_bar(72, "Velas", s.sail_hp / 100.0, Color(0.9, 0.88, 0.75))
 		var spd := s.speed * 1.94 * 0.6
 		draw_string(f, Vector2(12, 106), "%s  •  %.1f nós  •  Carga %d/%d  •  %s" % [s.def["name"], spd, Game.cargo_used(), Game.cargo_capacity(), Game.AMMO[s.ammo]], HORIZONTAL_ALIGNMENT_LEFT, size.x - 16, 13, Color(1, 1, 1, 0.75))
 
@@ -448,6 +457,16 @@ func _ready() -> void:
 	fire_l = _round("BOMBORDO", "◄", Control.PRESET_BOTTOM_RIGHT, Vector2(-318, -140), Vector2(128, 128), func(): _fire(-1.0))
 	fire_r.color = Color(0.45, 0.08, 0.05, 0.75)
 	fire_l.color = Color(0.45, 0.08, 0.05, 0.75)
+	# armas extras (estilo Black Flag)
+	bow_btn = _round("PROA", "corrente", Control.PRESET_BOTTOM_RIGHT, Vector2(-178, -262), Vector2(84, 84), func(): _bow())
+	mortar_btn = _round("MORTEIRO", "", Control.PRESET_BOTTOM_RIGHT, Vector2(-274, -238), Vector2(84, 84), func(): _mortar())
+	brace_btn = _round("SEGURAR", "", Control.PRESET_BOTTOM_RIGHT, Vector2(-370, -238), Vector2(84, 84), func(): _brace())
+	for b in [bow_btn, mortar_btn, brace_btn]:
+		b.font_size = 12
+		b.color = Color(0.3, 0.12, 0.05, 0.75)
+	brace_btn.color = Color(0.1, 0.2, 0.35, 0.75)
+	musket_btn = _round("ATIRAR", "mosquete", Control.PRESET_BOTTOM_RIGHT, Vector2(-170, -178), Vector2(140, 140), func(): ctl.shoot_musket())
+	musket_btn.color = Color(0.45, 0.08, 0.05, 0.75)
 
 	var defs := [
 		["MENU", func(): open_menu.emit()],
@@ -528,6 +547,34 @@ func _fire(side: float) -> void:
 		p.fire(side)
 
 
+func _bow() -> void:
+	var p := World.I.player
+	if p and not p.dead and not ctl.on_land():
+		p.fire_bow()
+
+
+func _mortar() -> void:
+	var p := World.I.player
+	if p == null or p.dead or ctl.on_land():
+		return
+	if int(Game.upgrades["morteiro"]) < 1:
+		Game.notify("Compre morteiros no estaleiro para usar.", Color(1, 0.7, 0.4))
+		return
+	if p.mortar_cd > 0.0:
+		return
+	var t := p.mortar_target()
+	if t == Vector3.INF:
+		Game.notify("Nenhum alvo inimigo entre 150 e 620 m para o morteiro.", Color(1, 0.8, 0.5))
+		return
+	p.fire_mortar(t)
+
+
+func _brace() -> void:
+	var p := World.I.player
+	if p and not p.dead and not ctl.on_land():
+		p.brace()
+
+
 func _cycle_ammo() -> void:
 	var p := World.I.player
 	p.ammo = (p.ammo + 1) % 3
@@ -539,6 +586,8 @@ func _cycle_flag() -> void:
 	var opts := [Game.career]
 	if Game.career == Game.PIR:
 		opts = [Game.PIR, Game.ENG, Game.ESP, Game.FRA, Game.HOL, Game.POR]
+	elif Game.career == Game.KIN:
+		opts = [Game.KIN, Game.PIR, Game.ENG, Game.ESP, Game.FRA, Game.HOL, Game.POR]
 	else:
 		opts = [Game.career, Game.PIR]
 	var cur := Game.player_flag()
@@ -601,6 +650,17 @@ func _process(delta: float) -> void:
 	fire_r.progress = w.player.reload_frac(1.0)
 	fire_l.queue_redraw()
 	fire_r.queue_redraw()
+	var pl := w.player
+	bow_btn.visible = not foot
+	brace_btn.visible = not foot
+	mortar_btn.visible = not foot and int(Game.upgrades["morteiro"]) > 0
+	musket_btn.visible = ctl.mode == PlayerController.Mode.FOOT
+	bow_btn.progress = 1.0 - pl.bow_cd / Ship.BOW_RELOAD
+	mortar_btn.progress = 1.0 - pl.mortar_cd / Ship.MORTAR_RELOAD
+	brace_btn.progress = 1.0 - pl.brace_cd / 6.0
+	musket_btn.progress = ctl.musket_frac()
+	for b in [bow_btn, mortar_btn, brace_btn, musket_btn]:
+		b.queue_redraw()
 	for b in small_btns:
 		b.visible = not foot or b.text in ["MENU", "MAPA"]
 	_flash = maxf(0.0, _flash - delta)
@@ -664,6 +724,15 @@ func _input(e: InputEvent) -> void:
 					action_pressed.emit(action_id)
 			KEY_R:
 				_cycle_ammo()
+			KEY_T:
+				_mortar()
+			KEY_G:
+				_bow()
+			KEY_B:
+				_brace()
+			KEY_X:
+				if ctl.mode == PlayerController.Mode.FOOT:
+					ctl.shoot_musket()
 
 
 func release_all() -> void:

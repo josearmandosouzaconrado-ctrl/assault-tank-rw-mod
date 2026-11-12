@@ -45,6 +45,9 @@ var _treasure_marker: Node3D
 var _mission_marker: Node3D
 var _cloud_off := Vector2.ZERO
 var paused_world := false
+var war := {}              # guerra em curso: {"att", "port", "t", "spawned", "att_ships", "def_ships"}
+var _war_timer := 150.0
+var _war_marker: Node3D
 
 
 func _init() -> void:
@@ -230,11 +233,14 @@ func raw_height(x: float, z: float) -> float:
 	if s < 0.0:
 		return maxf(1.0 + s * 0.11, -18.0)
 	var n1 := _noise_h.get_noise_2d(x, z)
-	var maxh := 30.0 + 130.0 * clampf(_noise_m.get_noise_2d(x, z) * 0.6 + 0.5, 0.0, 1.0)
+	var maxh := 35.0 + 150.0 * clampf(_noise_m.get_noise_2d(x, z) * 0.6 + 0.5, 0.0, 1.0)
 	var h := 1.0 + 1.7 * smoothstep(0.0, 28.0, s)
 	var inner := clampf((s - 25.0) / 420.0, 0.0, 1.0)
 	var far := clampf((s - 400.0) / 2500.0, 0.0, 1.0)
 	h += maxh * (pow(inner, 1.2) * 0.55 + far * 0.6) * (0.55 + 0.6 * n1)
+	# cordilheiras no interior das ilhas grandes e dos continentes
+	var ridge := 1.0 - absf(_noise_m.get_noise_2d(x * 3.0 + 500.0, z * 3.0))
+	h += 110.0 * pow(ridge, 3.0) * clampf((s - 300.0) / 1500.0, 0.0, 1.0)
 	h += _noise_h.get_noise_2d(x * 4.0, z * 4.0) * 3.0 * smoothstep(30.0, 150.0, s)
 	return h
 
@@ -633,6 +639,10 @@ func _process(delta: float) -> void:
 		_update_environment()
 	_weather(delta)
 	_update_wakes()
+	if _mortar_marker and _mortar_marker.visible:
+		_marker_t -= delta
+		_mortar_marker.rotate_y(delta * 1.5)
+		_mortar_marker.visible = _marker_t > 0.0
 	_stream_islands()
 	_update_loot(delta)
 	_update_markers()
@@ -647,6 +657,7 @@ func _physics_process(delta: float) -> void:
 		_spawn_tick()
 	_separate_ships()
 	_forts(delta)
+	_wars(delta)
 	if not player.dead:
 		Game.player_pos = player.pos2()
 		Game.player_yaw = player.yaw
@@ -654,6 +665,126 @@ func _physics_process(delta: float) -> void:
 		Game.sail_hp = player.sail_hp
 		Game.crew = player.crew
 		_check_mission_spawn()
+
+
+# ================================================================ guerras entre nações
+func _wars(delta: float) -> void:
+	if war.is_empty():
+		_war_timer -= delta
+		if _war_timer <= 0.0:
+			_war_timer = _rng.randf_range(260.0, 480.0)
+			_start_war()
+		return
+	war["t"] -= delta
+	var ps := port_islands[war["port"]]
+	if _war_marker == null:
+		_war_marker = _make_marker(Color(1.0, 0.5, 0.1))
+	_war_marker.visible = true
+	_war_marker.global_position = Vector3(ps.dock_point.x, 0, ps.dock_point.y)
+	if not war["spawned"] and player.pos2().distance_to(ps.dock_point) < 2600.0:
+		_spawn_war_fleets()
+	if war["t"] <= 0.0:
+		_end_war()
+
+
+func _start_war() -> void:
+	var cands: Array = []
+	for i in port_islands.size():
+		var o: int = Game.port_owner[i]
+		for a in 5:
+			if a != o and Game.are_enemies(a, o) and not (o == Game.PIR and a == Game.PIR):
+				# atacantes preferem portos perto dos seus
+				var w := 1.0
+				for j in port_islands.size():
+					if Game.port_owner[j] == a and port_islands[j].dock_point.distance_to(port_islands[i].dock_point) < 6000.0:
+						w += 1.0
+				cands.append([w, a, i])
+	if cands.is_empty():
+		return
+	var total := 0.0
+	for c in cands:
+		total += c[0]
+	var r := _rng.randf() * total
+	var pick: Array = cands[0]
+	for c in cands:
+		r -= c[0]
+		if r <= 0.0:
+			pick = c
+			break
+	war = {"att": pick[1], "port": pick[2], "t": 200.0, "spawned": false, "att_ships": [], "def_ships": []}
+	var o2: int = Game.port_owner[pick[2]]
+	var txt := "GUERRA! Uma frota %s ataca %s (%s)." % [Game.NATIONS[pick[1]]["adj"], Game.PORTS_DEF[pick[2]]["name"], Game.NATIONS[o2]["name"]]
+	if o2 == Game.career:
+		txt += " Defenda a cidade!"
+	elif pick[1] == Game.career:
+		txt += " Junte-se ao ataque!"
+	Game.notify(txt, Color(1, 0.55, 0.3))
+	Sfx.play("bell", -4.0, 0.8)
+
+
+func _spawn_war_fleets() -> void:
+	war["spawned"] = true
+	var ps := port_islands[war["port"]]
+	var a: int = war["att"]
+	var o: int = Game.port_owner[war["port"]]
+	var base := ps.dock_point + ps.dir * 450.0
+	for k in 3:
+		var p := _find_water_near(base + Vector2(-ps.dir.y, ps.dir.x) * (k - 1) * 120.0)
+		var s := spawn_ship([3, 2, 4][k] if a != Game.PIR else [1, 2, 2][k], a, Ship.Role.PIRATE if a == Game.PIR else Ship.Role.PATROL, p, atan2(ps.dir.x, ps.dir.y))
+		s.mission_target = true   # não some por distância durante a batalha
+		s.ai_dest = ps.dock_point
+		war["att_ships"].append(s)
+	for k in 2:
+		var p := _find_water_near(ps.dock_point + Vector2(-ps.dir.y, ps.dir.x) * (k * 2 - 1) * 90.0)
+		var s := spawn_ship(2 + k, o, Ship.Role.PIRATE if o == Game.PIR else Ship.Role.PATROL, p, atan2(-ps.dir.x, -ps.dir.y))
+		s.mission_target = true
+		war["def_ships"].append(s)
+
+
+func _end_war() -> void:
+	var i: int = war["port"]
+	var a: int = war["att"]
+	var o: int = Game.port_owner[i]
+	var att_win := false
+	var player_near := player.pos2().distance_to(port_islands[i].dock_point) < 3000.0
+	if war["spawned"]:
+		var att := 0
+		var dfn := 0
+		for s in war["att_ships"]:
+			if is_instance_valid(s) and not s.dead:
+				att += 1
+		for s in war["def_ships"]:
+			if is_instance_valid(s) and not s.dead:
+				dfn += 1
+		var fort := 2 if Game.port_fort_hp[i] > Game.fort_max_hp() * 0.4 else 0
+		att_win = att * 2 > dfn * 2 + fort
+		for s in war["att_ships"] + war["def_ships"]:
+			if is_instance_valid(s):
+				s.mission_target = false
+	else:
+		att_win = _rng.randf() < (0.3 if o == Game.KIN else 0.4)
+	if att_win and Game.port_owner[i] == o:
+		Game.port_owner[i] = a
+		Game.port_fort_hp[i] = Game.fort_max_hp() * 0.4
+		port_islands[i].set_owner_flag(a)
+		var txt := "%s caiu! Agora pertence a %s." % [Game.PORTS_DEF[i]["name"], Game.NATIONS[a]["name"]]
+		if o == Game.KIN:
+			txt = "Seu reino perdeu %s para a %s!" % [Game.PORTS_DEF[i]["name"], Game.NATIONS[a]["name"]]
+		Game.notify(txt, Color(1, 0.5, 0.3))
+		if a == Game.career and player_near and war["spawned"]:
+			Game.gold += 2500
+			Game.add_merit(180)
+			Game.notify("Você ajudou na conquista! +2500 moedas.", Color(0.6, 1, 0.6))
+	else:
+		Game.notify("%s resistiu ao ataque %s." % [Game.PORTS_DEF[i]["name"], Game.NATIONS[a]["adj"]], Color(0.8, 0.9, 1))
+		if o == Game.career and player_near and war["spawned"]:
+			Game.gold += 2000
+			Game.add_merit(150)
+			Game.change_rep(o, 8)
+			Game.notify("Você defendeu a cidade! +2000 moedas.", Color(0.6, 1, 0.6))
+	war = {}
+	if _war_marker:
+		_war_marker.visible = false
 
 
 func _separate_ships() -> void:
@@ -672,10 +803,63 @@ func _separate_ships() -> void:
 				var push := d / dist * (min_d - dist) * 0.5
 				a.global_position -= Vector3(push.x, 0, push.y)
 				b.global_position += Vector3(push.x, 0, push.y)
-				var rel := absf(a.speed - b.speed)
-				if rel > 3.0:
-					a.speed *= 0.6
-					b.speed *= 0.6
+				var n := d / dist
+				var va := Vector2(a.velocity.x, a.velocity.z).dot(n)
+				var vb := Vector2(b.velocity.x, b.velocity.z).dot(-n)
+				var closing := va + vb
+				if closing > 3.0:
+					_ram(a, b, va, vb, closing)
+					a.speed *= 0.5
+					b.speed *= 0.5
+
+
+## Abalroamento: quem vem de proa causa mais dano; o esporão de ferro aumenta o dano e protege o casco.
+func _ram(a: Ship, b: Ship, va: float, vb: float, closing: float) -> void:
+	var rammer := a if va >= vb else b
+	var victim := b if rammer == a else a
+	var bonus := 1.0
+	var self_k := 0.35
+	if rammer.is_player:
+		bonus += 0.4 * Game.upgrades["esporao"]
+		self_k = maxf(0.08, 0.35 - 0.09 * Game.upgrades["esporao"])
+	var dmg := closing * 10.0 * bonus * clampf(rammer.length / victim.length, 0.5, 2.0)
+	victim.take_raw_damage(dmg, rammer.is_player)
+	rammer.take_raw_damage(dmg * self_k, false)
+	Sfx.play_at("hit", victim.global_position, 6.0, 0.5)
+	fx.emit("hit", victim.global_position + Vector3(0, 2, 0))
+	if rammer.is_player or victim.is_player:
+		shake(0.8)
+	if rammer.is_player:
+		Game.notify("Abalroou o %s!" % victim.def["name"], Color(1, 0.7, 0.3))
+		on_ship_attacked(victim, rammer, true)
+	elif victim.is_player:
+		player_hit()
+
+
+var _mortar_marker: MeshInstance3D
+var _marker_t := 0.0
+
+
+func show_mortar_marker(p: Vector3, t: float) -> void:
+	if _mortar_marker == null:
+		_mortar_marker = MeshInstance3D.new()
+		var tm := TorusMesh.new()
+		tm.inner_radius = 10.0
+		tm.outer_radius = 11.5
+		tm.rings = 32
+		tm.ring_segments = 4
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.albedo_color = Color(1.0, 0.25, 0.15, 0.85)
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.no_depth_test = true
+		tm.material = m
+		_mortar_marker.mesh = tm
+		_mortar_marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(_mortar_marker)
+	_mortar_marker.global_position = Vector3(p.x, Ocean.height_at(p.x, p.z) + 0.5 if p.y < 3.0 else p.y, p.z)
+	_mortar_marker.visible = true
+	_marker_t = t
 
 
 # ================================================================ navios
@@ -824,6 +1008,9 @@ func _player_vs(s: Ship) -> bool:
 func hostile(a: Ship, b: Ship) -> bool:
 	if a.dead or b.dead:
 		return false
+	# navio ancorado enquanto o capitão está em terra fica fora do combate (como no Black Flag)
+	if (a.is_player or b.is_player) and ctl and ctl.on_land():
+		return false
 	if a.is_player:
 		return _player_vs(b)
 	if b.is_player:
@@ -909,7 +1096,7 @@ func respawn_after_sinking() -> void:
 	Game.ship_type = 0
 	Game.cargo = {}
 	Game.gold = int(Game.gold * 0.5)
-	Game.upgrades = {"casco": 0, "velas": 0, "canhoes": 0, "artilheiros": 0}
+	Game.upgrades = {"casco": 0, "velas": 0, "canhoes": 0, "artilheiros": 0, "morteiro": 0, "proa": 0, "esporao": 0}
 	Game.hull_hp = Game.max_hull()
 	Game.sail_hp = 100.0
 	Game.crew = 25
@@ -1003,7 +1190,7 @@ func take_over_ship(s: Ship) -> void:
 	Game.hull_hp = Game.max_hull() * hp_frac
 	Game.sail_hp = maxf(40.0, s.sail_hp)
 	Game.crew = mini(old_crew, Game.max_crew())
-	Game.upgrades = {"casco": 0, "velas": 0, "canhoes": 0, "artilheiros": 0}
+	Game.upgrades = {"casco": 0, "velas": 0, "canhoes": 0, "artilheiros": 0, "morteiro": 0, "proa": 0, "esporao": 0}
 	spawn_player()
 	player.global_position = Vector3(p.x, 0, p.y)
 	player.yaw = y
@@ -1089,14 +1276,16 @@ func _forts(delta: float) -> void:
 
 
 ## Conquista de um porto cujo forte foi silenciado.
-func capture_port(i: int) -> Dictionary:
-	var garrison := 120 + Game.rank_index() * 30
+func capture_port(i: int, garrison_mult := 1.0) -> Dictionary:
+	var garrison := int((120 + Game.rank_index() * 30) * garrison_mult)
 	var res := resolve_boarding(garrison, 1.15)
 	if not res["win"]:
 		return res
 	var old: int = Game.port_owner[i]
 	var new_owner := Game.career
 	Game.port_owner[i] = new_owner
+	if not Game.conquered.has(i):
+		Game.conquered.append(i)
 	Game.port_fort_hp[i] = Game.fort_max_hp() * 0.3
 	port_aggro[i] = false
 	port_islands[i].set_owner_flag(new_owner)

@@ -87,6 +87,30 @@ func _run() -> void:
 		p.fire(1.0)
 		await _wait(1.5)
 	print("Inimigo HP depois: ", e.hp, " morto=", e.dead)
+	# armas extras: morteiro num navio distante, corrente pela proa e segurar-se
+	Game.upgrades["morteiro"] = 2
+	var far := w.spawn_ship(3, Game.ESP if Game.career != Game.ESP else Game.ENG, Ship.Role.MERCHANT, w._find_water_near(p.pos2() + p.forward() * 300.0), p.yaw)
+	far.aggro_player = true
+	far.surrendered = true
+	far.speed = 0.0
+	var save_speed := p.speed
+	p.speed = 0.0
+	main.ctl.sail_target = 0.0
+	var mt := p.mortar_target()
+	print("Morteiro mira em ", mt, " | longe ", far.global_position, " | perto ", e.global_position, " hp perto ", e.hp)
+	var hp_e0 := e.hp
+	main.hud._mortar()
+	main.ctl.orbit_pitch = -0.5
+	await _wait(1.5)
+	await _shot("06b_morteiro")
+	await _wait(6.0)
+	print("Morteiro: longe HP ", far.hp, "/", far.max_hp, "  perto HP ", hp_e0, " -> ", e.hp)
+	p.bow_cd = 0.0
+	main.hud._bow()
+	main.hud._brace()
+	await _wait(1.5)
+	print("Proa+segurar: brace_t ", p.brace_t, " bow_cd ", p.bow_cd)
+	main.ctl.orbit_pitch = -0.2
 	e.hp = 1.0
 	e.take_hit(30.0, 0, p, e.global_position, true, Game.career)
 	await _wait(3.0)
@@ -164,6 +188,31 @@ func _run() -> void:
 	print("Cavalo andou até ", h.global_position, " vel ", h.speed)
 	main.ctl.move_vec = Vector2.ZERO
 	main.ctl.dismount()
+	# roupa nova, mosquete e tiroteio numa cidade que fica hostil
+	main.ctl.foot_yaw = atan2(isl.dir.x, isl.dir.y)
+	Game.outfit = 2
+	Game.coat_color = 1
+	Game.hat = 1
+	main.ctl._make_avatar()
+	await _wait(0.5)
+	main.ctl.town.provoke()
+	await _wait(3.0)
+	await _shot("16a_tiroteio")
+	for k in 6:
+		main.ctl.musket_cd = 0.0
+		var g: Dictionary = main.ctl.town.nearest_enemy(main.ctl.foot_pos, 200.0)
+		if g.is_empty():
+			break
+		var gp: Vector3 = g["p"]["root"].global_position
+		var tv: Vector3 = gp - main.ctl.foot_pos
+		main.ctl.foot_yaw = atan2(-tv.x, -tv.z)
+		main.ctl.foot_pos = gp - tv.normalized() * 20.0
+		main.ctl.shoot_musket()
+		await _wait(0.7)
+	await _shot("16b_mosquete")
+	print("Guardas vivos: ", main.ctl.town.guards_alive(), " vida do capitão: ", main.ctl.hp)
+	main.ctl.hp = 100.0
+	main.ctl.town.alarm = false
 	# vista do forte e das casas
 	var fpos: Vector3 = isl.fort_pos
 	var tcv: Vector3 = isl.town_center
@@ -191,6 +240,26 @@ func _run() -> void:
 	main.ctl.orbit_pitch = -0.08
 	await _wait(1.5)
 	await _shot("15_cidade")
+	# reino e guerra
+	Game.conquered = [pi, (pi + 1) % 19]
+	Game.port_owner[pi] = Game.career
+	Game.port_owner[(pi + 1) % 19] = Game.career
+	Game.gold += 20000
+	main.port_ui.open(pi, "governo")
+	get_tree().paused = true
+	await _wait(0.5)
+	await _shot("18_governo")
+	main.port_ui._found("Reino das Antilhas")
+	await _wait(0.5)
+	await _shot("19_reino")
+	main.port_ui.visible = false
+	get_tree().paused = false
+	print("Carreira: ", Game.career_title(), " portos do reino: ", Game.kingdom_ports())
+	w._start_war()
+	w.war["port"] = w.nearest_port(p.pos2())
+	await _wait(1.0)
+	await _shot("20_guerra")
+	print("Guerra: ", w.war.get("att", -1), " em ", w.war.get("port", -1), " frotas ", w.war.get("spawned", false))
 	print("Navios: ", w.ships.size(), " FPS: ", Engine.get_frames_per_second())
 	print("AUTOTEST OK")
 	get_tree().quit()

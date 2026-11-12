@@ -50,6 +50,23 @@ vec3 flag_pattern(int t, vec2 uv) {
 		if (abs(q.x) < 0.12 && q.y < -0.18 && q.y > -0.3) c = vec3(0.88, 0.7, 0.2);
 		return c;
 	}
+	if (t == 6) { // Reino do jogador: coroa dourada sobre carmesim, com borda dourada
+		vec3 gold = vec3(0.92, 0.72, 0.2);
+		vec3 c = vec3(0.42, 0.04, 0.16);
+		if (uv.x < 0.04 || uv.x > 0.96 || uv.y < 0.06 || uv.y > 0.94) c = gold;
+		vec2 k = q - vec2(0.0, 0.02);
+		float band = step(abs(k.x), 0.2) * step(0.08, k.y) * step(k.y, 0.16);
+		float body = step(abs(k.x), 0.2) * step(-0.06, k.y) * step(k.y, 0.12);
+		float spikes = 0.0;
+		for (int i = -1; i <= 1; i++) {
+			vec2 sp = k - vec2(float(i) * 0.15, -0.06);
+			if (sp.y < 0.0 && sp.y > -0.17 + abs(sp.x) * 1.9) spikes = 1.0;
+			if (length(k - vec2(float(i) * 0.15, -0.25 + abs(float(i)) * 0.04)) < 0.035) spikes = 1.0;
+		}
+		if (band + body + spikes > 0.0) c = gold;
+		if (length(k - vec2(0.0, 0.03)) < 0.035) c = vec3(0.7, 0.05, 0.1);
+		return c;
+	}
 	// Piratas: caveira e ossos cruzados
 	vec3 c = vec3(0.03);
 	vec2 s = q - vec2(0.0, -0.06);

@@ -103,6 +103,10 @@ func _draw_map() -> void:
 		canvas.draw_string(f, p + Vector2(-70, -12), isl.name, HORIZONTAL_ALIGNMENT_CENTER, 140, 14, Color.WHITE)
 		if Game.port_fort_hp[i] <= 0.0:
 			canvas.draw_string(f, p + Vector2(-70, 24), "forte destruído", HORIZONTAL_ALIGNMENT_CENTER, 140, 11, Color(1, 0.5, 0.3))
+	if not w.war.is_empty():
+		var wq := _to_screen(w.port_islands[w.war["port"]].dock_point)
+		canvas.draw_arc(wq, 18, 0, TAU, 24, Color(1, 0.5, 0.1), 4.0)
+		canvas.draw_string(f, wq + Vector2(-70, 40), "GUERRA", HORIZONTAL_ALIGNMENT_CENTER, 140, 14, Color(1, 0.55, 0.2))
 	var mp := w.mission_point()
 	if mp != Vector2.INF:
 		var q := _to_screen(mp)
@@ -129,7 +133,7 @@ func _draw_map() -> void:
 	canvas.draw_circle(c + wv * 26, 5, Color(0.6, 0.85, 1.0))
 	canvas.draw_string(f, c + Vector2(-40, 58), "vento", HORIZONTAL_ALIGNMENT_CENTER, 80, 13, Color(0.6, 0.85, 1.0))
 	var ly := r.position.y + 10
-	for n in 6:
+	for n in Game.nation_count():
 		canvas.draw_circle(Vector2(r.end.x - 150, ly + n * 22 + 6), 6, Game.NATIONS[n]["color"])
 		canvas.draw_string(f, Vector2(r.end.x - 138, ly + n * 22 + 11), Game.NATIONS[n]["name"], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color.WHITE)
 

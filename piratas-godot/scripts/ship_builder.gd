@@ -581,6 +581,9 @@ static func build(d: Dictionary, nation: int, flag_type: int) -> Dictionary:
 		Game.POR:
 			emblem = 2
 			emblem_col = Color(0.75, 0.1, 0.08)
+		Game.KIN:
+			emblem = 2
+			emblem_col = Color(0.85, 0.65, 0.2)
 		Game.PIR:
 			emblem = 3
 			emblem_col = Color(0.85, 0.82, 0.75)

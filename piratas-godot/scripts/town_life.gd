@@ -26,6 +26,8 @@ var site: PortSite
 var people: Array = []   # {"node", "legs", "arms", "target", "wait", "speed", "kind", "phase", "name"}
 var horses: Array = []   # Horse
 var special: Dictionary = {}
+var alarm := false        # o jogador atirou numa cidade amiga
+var _panic := 0.0
 var _rng := RandomNumberGenerator.new()
 
 static var _mat: StandardMaterial3D
@@ -165,16 +167,22 @@ func setup(ps: PortSite) -> void:
 	# guardas (oficiais) perto da praça e do forte
 	var tc := Vector2(ps.town_center.x, ps.town_center.z)
 	var fp := Vector2(ps.fort_pos.x, ps.fort_pos.z)
-	for i in 3:
-		var g := Assets.person("oficial", _rng)
+	var owner: int = Game.port_owner[ps.idx]
+	var n_guards := 3
+	if hostile():
+		n_guards = 6 if Game.port_fort_hp[ps.idx] > 0.0 else 4
+	for i in n_guards:
+		var g := Assets.soldier(owner, _rng)
 		add_child(g["root"])
-		var spot: Vector2 = tc.lerp(fp, 0.35 + i * 0.2) + Vector2(_rng.randf_range(-6, 6), _rng.randf_range(-6, 6))
+		var spot: Vector2 = tc.lerp(fp, 0.25 + (i % 3) * 0.2) + Vector2(_rng.randf_range(-9, 9), _rng.randf_range(-9, 9))
 		g["root"].global_position = Vector3(spot.x, w.terrain_height(spot.x, spot.y), spot.y)
-		people.append({"p": g, "target": spot, "wait": 999.0, "speed": 0.0, "kind": "guarda", "phase": 0.0, "name": "Guarda"})
+		people.append({"p": g, "target": spot, "wait": 999.0, "speed": 0.0, "kind": "guarda", "phase": 0.0, "name": "Guarda",
+			"alive": true, "cd": _rng.randf_range(1.5, 3.5), "post": spot})
 	# pessoa especial (romance) na porta da taverna
 	var rn := Game.romance_name(ps.idx)
 	var female := ps.idx % 2 == 0
-	var sp := Assets.person("mulher" if female else "oficial", _rng)
+	var sp := Assets.person("mulher" if female else "homem", _rng, {"file": "Smooth_Female_Dress" if female else "Smooth_Male_Suit",
+		"coat": Color(0.62, 0.1, 0.2) if female else Color(0.12, 0.18, 0.4), "hat": 0 if female else 1})
 	add_child(sp["root"])
 	var door := Vector2(ps.tavern_pos.x, ps.tavern_pos.z) - ps.dir * 9.0
 	sp["root"].global_position = Vector3(door.x, w.terrain_height(door.x, door.y), door.y)
@@ -190,29 +198,87 @@ func setup(ps: PortSite) -> void:
 		horses.append(h)
 
 
+## Um ponto ao acaso nas ruas (os moradores andam pelas ruas, não atravessam casas).
 func _random_spot() -> Vector2:
 	var tc := Vector2(site.town_center.x, site.town_center.z)
-	if site.houses.is_empty() or _rng.randf() < 0.3:
-		return tc + Vector2(_rng.randf_range(-20, 20), _rng.randf_range(-20, 20))
-	var hp: Vector2 = site.houses[_rng.randi() % site.houses.size()]
-	return hp.lerp(tc, 0.35) + Vector2(_rng.randf_range(-4, 4), _rng.randf_range(-4, 4))
+	if site.streets.is_empty() or _rng.randf() < 0.25:
+		return tc + Vector2.from_angle(_rng.randf() * TAU) * _rng.randf_range(4.0, 20.0)
+	var sp: PackedVector2Array = site.streets[_rng.randi() % site.streets.size()]
+	return sp[0].lerp(sp[1], _rng.randf()) + Vector2(_rng.randf_range(-2, 2), _rng.randf_range(-2, 2))
+
+
+func hostile() -> bool:
+	return alarm or Game.nation_hostile_to_player(Game.port_owner[site.idx])
+
+
+## O jogador disparou: numa cidade amiga, isso vira um crime.
+func provoke() -> void:
+	_panic = 20.0
+	if not hostile():
+		alarm = true
+		var owner: int = Game.port_owner[site.idx]
+		Game.change_rep(owner, -15)
+		Game.notify("Você atirou nos guardas! %s agora é hostil a você." % site.name, Color(1, 0.35, 0.3))
+
+
+func kill(e: Dictionary) -> void:
+	if not e.get("alive", true):
+		return
+	e["alive"] = false
+	var p: Dictionary = e["p"]
+	p["cur"] = ""
+	Assets.play(p, "Death")
+	Sfx.play_at("hit", p["root"].global_position, -4.0, 1.4)
+	if guards_alive() == 0 and hostile():
+		Game.notify("Todos os guardas de %s caíram!" % site.name, Color(1, 0.85, 0.4))
+
+
+func guards_alive() -> int:
+	var n := 0
+	for e in people:
+		if e["kind"] == "guarda" and e.get("alive", true):
+			n += 1
+	return n
+
+
+func nearest_enemy(p: Vector3, max_d: float) -> Dictionary:
+	if not hostile():
+		return {}
+	var best := {}
+	var bd := max_d
+	for e in people:
+		if e["kind"] != "guarda" or not e.get("alive", true):
+			continue
+		var d: float = e["p"]["root"].global_position.distance_to(p)
+		if d < bd:
+			bd = d
+			best = e
+	return best
 
 
 func _process(delta: float) -> void:
 	var w := World.I
-	var lp := w.listener_pos()
+	var ctl: PlayerController = w.ctl
+	var lp: Vector3 = ctl.foot_pos if ctl else w.listener_pos()
+	var hot := hostile()
+	_panic = maxf(0.0, _panic - delta)
 	for e in people:
 		var p: Dictionary = e["p"]
 		var root: Node3D = p["root"]
 		var pos := Vector2(root.global_position.x, root.global_position.z)
+		if not e.get("alive", true):
+			continue
+		if e["kind"] == "guarda":
+			_guard(e, p, root, pos, lp, hot, delta)
+			continue
 		if e["kind"] != "morador":
-			# guardas e a pessoa especial olham para o jogador quando ele chega perto
 			var to := Vector2(lp.x, lp.z) - pos
 			if to.length() < 15.0:
 				root.rotation.y = lerp_angle(root.rotation.y, atan2(-to.x, -to.y), delta * 3.0)
 			Assets.play(p, "Idle")
 			continue
-		if e["wait"] > 0.0:
+		var running := _panic > 0.0
+		if e["wait"] > 0.0 and not running:
 			e["wait"] -= delta
 			Assets.play(p, "Idle")
 			continue
@@ -222,12 +288,65 @@ func _process(delta: float) -> void:
 			e["target"] = _random_spot()
 			e["wait"] = _rng.randf_range(1.5, 6.0)
 			continue
-		var step: Vector2 = d.normalized() * e["speed"] * delta
+		var spd: float = e["speed"] * (3.2 if running else 1.0)
+		var step: Vector2 = d.normalized() * spd * delta
+		if w.building_blocked(pos.x + step.x, pos.y + step.y):
+			e["target"] = _random_spot()
+			continue
 		pos += step
-		e["phase"] += delta * e["speed"] * 4.0
 		root.global_position = Vector3(pos.x, w.terrain_height(pos.x, pos.y), pos.y)
 		root.rotation.y = lerp_angle(root.rotation.y, atan2(-d.x, -d.y), delta * 6.0)
-		Assets.play(p, "Walk", e["speed"] / 1.3)
+		if running:
+			Assets.play(p, "Run")
+		else:
+			Assets.play(p, "Walk", e["speed"] / 1.3)
+
+
+## Guarda: parado no posto; se a cidade for hostil, vai até o jogador e atira com o mosquete.
+func _guard(e: Dictionary, p: Dictionary, root: Node3D, pos: Vector2, lp: Vector3, hot: bool, delta: float) -> void:
+	var w := World.I
+	var to := Vector2(lp.x, lp.z) - pos
+	var dist := to.length()
+	var ctl: PlayerController = w.ctl
+	var player_on_land := ctl != null and ctl.on_land()
+	if not hot or not player_on_land or dist > 80.0:
+		var post: Vector2 = e.get("post", pos)
+		var back := post - pos
+		if back.length() > 1.5 and hot:
+			pos += back.normalized() * 2.0 * delta
+			root.global_position = Vector3(pos.x, w.terrain_height(pos.x, pos.y), pos.y)
+			root.rotation.y = lerp_angle(root.rotation.y, atan2(-back.x, -back.y), delta * 6.0)
+			Assets.play(p, "Walk")
+			return
+		if dist < 15.0:
+			root.rotation.y = lerp_angle(root.rotation.y, atan2(-to.x, -to.y), delta * 3.0)
+		Assets.play(p, "Idle")
+		return
+	root.rotation.y = lerp_angle(root.rotation.y, atan2(-to.x, -to.y), delta * 6.0)
+	e["cd"] = float(e["cd"]) - delta
+	if dist > 16.0:
+		var stp := to.normalized() * 4.2 * delta
+		if not w.building_blocked(pos.x + stp.x, pos.y + stp.y):
+			pos += stp
+			root.global_position = Vector3(pos.x, w.terrain_height(pos.x, pos.y), pos.y)
+		if not (p["cur"].ends_with("Punch") and p["ap"].is_playing()):
+			Assets.play(p, "Run")
+	elif not (p["cur"].ends_with("Punch") and p["ap"].is_playing()):
+		Assets.play(p, "Idle")
+	if e["cd"] <= 0.0 and dist < 45.0:
+		e["cd"] = _rng.randf_range(2.6, 4.2)
+		p["cur"] = ""
+		Assets.play(p, "Punch", 1.4)
+		var dir3 := Vector3(to.x, 0, to.y).normalized()
+		var muzzle := root.global_position + Vector3(0, 1.3, 0) + dir3 * 0.9
+		Effects.I.emit("flash", muzzle, dir3)
+		Effects.I.emit("smoke", muzzle, dir3)
+		Sfx.play_at("cannon", muzzle, -10.0, 2.6)
+		var chance := 0.32 * (1.0 - dist / 60.0)
+		if ctl.mode == PlayerController.Mode.HORSE:
+			chance *= 0.6
+		if _rng.randf() < chance:
+			ctl.foot_hit(_rng.randf_range(10.0, 18.0))
 
 
 ## Pessoa mais próxima do ponto (para conversar), ou {}.
@@ -235,6 +354,8 @@ func nearest_person(p: Vector3, max_d: float) -> Dictionary:
 	var best := {}
 	var bd := max_d
 	for e in people:
+		if not e.get("alive", true):
+			continue
 		var d: float = e["p"]["root"].global_position.distance_to(p)
 		if d < bd:
 			bd = d
