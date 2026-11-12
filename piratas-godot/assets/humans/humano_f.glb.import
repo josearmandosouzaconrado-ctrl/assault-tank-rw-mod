@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://doyuxdmcuti1m"
-path="res://.godot/imported/Smooth_Female_Dress.fbx-e8eede2f26ebafb1bf755c35bc84421e.scn"
+uid="uid://dvmd6rwinp674"
+path="res://.godot/imported/humano_f.glb-c43cc51fef74dd9447605bfd091aa7c0.scn"
 
 [deps]
 
-source_file="res://assets/people/Smooth_Female_Dress.fbx"
-dest_files=["res://.godot/imported/Smooth_Female_Dress.fbx-e8eede2f26ebafb1bf755c35bc84421e.scn"]
+source_file="res://assets/humans/humano_f.glb"
+dest_files=["res://.godot/imported/humano_f.glb-c43cc51fef74dd9447605bfd091aa7c0.scn"]
 
 [params]
 
@@ -27,11 +27,10 @@ meshes/force_disable_compression=false
 skins/use_named_skins=true
 animation/import=true
 animation/fps=30
-animation/trimming=true
+animation/trimming=false
 animation/remove_immutable_tracks=true
 animation/import_rest_as_RESET=false
 import_script/path=""
 _subresources={}
-fbx/importer=0
-fbx/allow_geometry_helper_nodes=false
-fbx/embedded_image_handling=1
+gltf/naming_version=1
+gltf/embedded_image_handling=1

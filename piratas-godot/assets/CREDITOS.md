@@ -6,8 +6,9 @@ gratuitos ou comerciais sem pedir permissão. Agradecemos aos autores:
 - **Kenney** (www.kenney.nl) — *Pirate Kit*, *Fantasy Town Kit* e *Nature Kit*
   (`assets/kenney/pirate`, `assets/kenney/town`, `assets/kenney/nature`).
   As paletas `colormap_*.png` são variações recoloridas pelo jogo (telhas e paredes de cada nação).
-- **Quaternius** (quaternius.com) — *Animated Men/Women Characters* e *Farm Animals Animated*
-  (`assets/people`, `assets/animals/Horse.fbx`).
+- **Quaternius** (quaternius.com) — *Universal Base Characters* (homem e mulher realistas, com
+  animações; `assets/humans`, reduzidos por `tools/preparar_humanos.py`) e *Farm Animals Animated*
+  (`assets/animals/Horse.fbx`).
 
 ## Mapa e terreno
 - **Natural Earth** (naturalearthdata.com) — contornos reais das costas e ilhas (domínio público),

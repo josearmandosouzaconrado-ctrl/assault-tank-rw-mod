@@ -157,8 +157,8 @@ func mount(h: Horse) -> void:
 	_rider = Assets.captain(rr, false)
 	_free_avatar()
 	h.add_child(_rider["root"])
-	# costas do cavalo a ~1,38 m; quadril do capitão sentado fica 0,43 m acima dos pés
-	_rider["root"].position = Vector3(0, 1.0, 0.2)
+	# costas do cavalo a ~1,4 m; sentado, o quadril fica 0,54 m acima e 0,33 m atrás da origem do modelo
+	_rider["root"].position = Vector3(0, 0.86, -0.12)
 	Assets.play(_rider, "Sitting")
 	mode = Mode.HORSE
 	_horse_cam_yaw = h.yaw

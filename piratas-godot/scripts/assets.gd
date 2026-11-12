@@ -1,12 +1,10 @@
 class_name Assets
 extends RefCounted
-## Modelos 3D prontos (licença CC0): personagens e cavalo animados da Quaternius,
+## Modelos 3D prontos (licença CC0): personagens realistas ("Universal Base Characters") e cavalo da Quaternius,
 ## peças de cidade, kit pirata e natureza da Kenney. Ver assets/CREDITOS.md.
 
-const PEOPLE_M := ["Smooth_Male_Shirt", "Smooth_Male_LongSleeve", "Smooth_Male_Casual"]
-const PEOPLE_F := ["Smooth_Female_Dress", "Smooth_Female_Casual", "Smooth_Female_Alternative"]
-const OFFICER := "Smooth_Male_Suit"
-const PERSON_SCALE := 0.37     # 4,74 unidades -> 1,75 m
+const HUMAN_M := "res://assets/humans/humano_m.glb"   # 1,81 m, 27 animações
+const HUMAN_F := "res://assets/humans/humano_f.glb"   # 1,77 m, usa as animações do homem
 const HORSE_SCALE := 0.35
 
 static var _scenes := {}
@@ -101,8 +99,10 @@ static func _fix_loops(ap: AnimationPlayer) -> void:
 				continue
 			_anims_fixed[a] = true
 			var low := an.to_lower()
-			if low.ends_with("walk") or low.ends_with("run") or low.ends_with("idle") or low.ends_with("walkslow") or low.ends_with("sitting") or low.ends_with("clapping"):
+			if low.ends_with("walk") or low.ends_with("run") or low.ends_with("idle") or low.ends_with("loop") or low.ends_with("gallop"):
 				a.loop_mode = Animation.LOOP_LINEAR
+			elif an.begins_with("Death") or an.begins_with("Hit") or an.begins_with("Sword") or an.begins_with("Punch"):
+				a.loop_mode = Animation.LOOP_NONE
 
 
 const OUTFITS := [
@@ -139,124 +139,216 @@ const PANTS_SLOTS := ["Pants"]
 const STOCKING := Color(0.86, 0.84, 0.78)
 
 
-## Pessoa animada. kind: "homem", "mulher", "oficial" ou "capitao".
-## opts: "file", "coat", "pants", "skin", "hair" (Color), "hat" (int), "musket" (bool).
-## Retorna {"root", "ap", "pre", "cur", "model"}.
+## Roupa-base de cada "look" (cores por região do corpo; null = pele à mostra).
+## Regiões: torso, arm (braço), fore (antebraço), front (frente do colete), breeches, stock (meia), shoe, neck.
+const FILE_LOOK := {"Smooth_Male_Suit": "casaca", "Smooth_Male_Shirt": "colete", "Smooth_Male_LongSleeve": "camisa",
+	"Smooth_Male_Casual": "casaca", "Smooth_Female_Dress": "vestido", "Smooth_Female_Casual": "corpete",
+	"Smooth_Female_Alternative": "casaca_f"}
+const LINEN := Color(0.9, 0.88, 0.82)
+const HUMAN_ANIMS := {"Run": "Jog_Fwd", "Death": "Death01", "Sitting": "Sitting_Idle", "Clapping": "Idle_Talking",
+	"Punch": "Punch_Jab", "Sword": "Sword_Regular_A", "Sword2": "Sword_Regular_B", "SwordIdle": "Sword_Idle",
+	"Block": "Sword_Block", "Hit": "Hit_Chest", "Drink": "Consume", "Arms": "Idle_FoldArms", "Rail": "Idle_Rail",
+	"Lantern": "Idle_Lantern", "Talk": "Idle_Talking"}
+const SKIN_REF := Color(0.69, 0.52, 0.36)
+static var _lib: AnimationLibrary
+static var _body_shader: Shader
+
+
+static func _clothes(look: String, coat: Color, pants: Color, waist: Color, rng: RandomNumberGenerator) -> Dictionary:
+	var dark_shoe := Color(0.07, 0.055, 0.05)
+	var c := {"torso": coat, "arm": coat, "fore": coat, "front": waist, "breeches": pants, "stock": STOCKING, "shoe": dark_shoe,
+		"neck": LINEN, "loose": Vector3(0.016, 0.016, 0.012)}
+	match look:
+		"camisa":
+			# camisa larga de linho, gola aberta; manga arregaçada e pés descalços às vezes
+			c["front"] = coat
+			c["neck"] = null
+			c["loose"] = Vector3(0.026, 0.032, 0.014)
+			if rng.randf() < 0.5:
+				c["fore"] = null
+			if rng.randf() < 0.45:
+				c["stock"] = null
+				if rng.randf() < 0.5:
+					c["shoe"] = null
+			else:
+				c["stock"] = Color(0.55, 0.53, 0.5)
+		"colete":
+			c["arm"] = LINEN
+			c["fore"] = LINEN if rng.randf() < 0.5 else null
+			c["front"] = coat.darkened(0.08)
+			c["neck"] = LINEN if rng.randf() < 0.5 else null
+			c["stock"] = Color(0.6, 0.58, 0.54)
+			c["shoe"] = Color(0.22, 0.13, 0.07)
+			c["loose"] = Vector3(0.018, 0.03, 0.013)
+		"corpete":
+			c["arm"] = LINEN
+			c["fore"] = null
+			c["front"] = coat.lightened(0.25)
+			c["neck"] = null
+			c["loose"] = Vector3(0.01, 0.022, 0.012)
+		"vestido":
+			c["fore"] = LINEN
+			c["front"] = coat.lightened(0.3)
+			c["neck"] = null
+			c["loose"] = Vector3(0.01, 0.016, 0.012)
+		"casaca_f":
+			c["front"] = LINEN
+			c["stock"] = Color(0.2, 0.12, 0.07)
+			c["shoe"] = Color(0.16, 0.1, 0.06)
+	return c
+
+
+static func _anim_library() -> AnimationLibrary:
+	if _lib == null:
+		var m: Node = scene(HUMAN_M).instantiate()
+		var ap: AnimationPlayer = m.find_children("*", "AnimationPlayer", true, false)[0]
+		_fix_loops(ap)
+		_lib = ap.get_animation_library("")
+		m.free()
+	return _lib
+
+
+static func _body_material(female: bool, skin: Color, cl: Dictionary) -> ShaderMaterial:
+	var key := "body%s%s%s" % [female, skin.to_html(), cl["loose"]]
+	for r in ["torso", "arm", "fore", "front", "breeches", "stock", "shoe", "neck"]:
+		key += "|" + (cl[r].to_html() if cl[r] != null else "-")
+	if _mats.has(key):
+		return _mats[key]
+	if _body_shader == null:
+		_body_shader = load("res://shaders/person.gdshader")
+	var m := ShaderMaterial.new()
+	m.shader = _body_shader
+	var tag := "f" if female else "m"
+	m.set_shader_parameter("tex_albedo", load("res://assets/humans/corpo_%s_cor.jpg" % tag))
+	m.set_shader_parameter("tex_normal", load("res://assets/humans/corpo_%s_normal.png" % tag))
+	var sl := skin.srgb_to_linear()
+	var rl := SKIN_REF.srgb_to_linear()
+	m.set_shader_parameter("skin_mul", Vector3(sl.r / rl.r, sl.g / rl.g, sl.b / rl.b))
+	m.set_shader_parameter("loose", cl["loose"])
+	m.set_shader_parameter("m1", Vector4(0.17, 0.392, 0.625, 0.98) if female else Vector4(0.2, 0.463, 0.69, 0.99))
+	m.set_shader_parameter("m2", Vector4(0.465, 0.105, 1.38, 1.53) if female else Vector4(0.47, 0.115, 1.48, 1.57))
+	for r in [["torso", "c_torso"], ["arm", "c_arm"], ["fore", "c_fore"], ["front", "c_front"], ["breeches", "c_breeches"],
+			["stock", "c_stock"], ["shoe", "c_shoe"], ["neck", "c_neck"]]:
+		var v: Variant = cl[r[0]]
+		m.set_shader_parameter(r[1], Color(v.r, v.g, v.b, 1.0) if v != null else Color(0, 0, 0, 0))
+	_mats[key] = m
+	return m
+
+
+## Pessoa animada (modelo humano realista). kind: "homem", "mulher", "oficial" ou "capitao".
+## opts: "file"/"look", "coat", "pants", "tie" (colete), "skin", "hair" (Color), "hair_style" (int), "hat" (int),
+## "musket" (bool), "bayonet" (bool), "style" (peças por cima: ver Attire.apply).
+## Retorna {"root", "ap", "pre", "cur", "model", "sk", "female"}.
 static func person(kind: String, rng: RandomNumberGenerator, opts := {}) -> Dictionary:
-	var file := OFFICER
-	if opts.has("file"):
-		file = opts["file"]
-	elif kind == "homem":
-		file = PEOPLE_M[rng.randi() % PEOPLE_M.size()]
-	elif kind == "mulher":
-		file = PEOPLE_F[rng.randi() % PEOPLE_F.size()]
+	var file: String = opts.get("file", "")
+	var female := kind == "mulher" or file.contains("Female")
+	var look: String = opts.get("look", FILE_LOOK.get(file, ""))
+	if look == "":
+		if female:
+			look = "corpete" if rng.randf() < 0.7 else "vestido"
+		elif kind == "homem":
+			look = ["camisa", "colete", "colete", "casaca"][rng.randi() % 4]
+		else:
+			look = "casaca"
 	var root := Node3D.new()
-	var model: Node3D = scene("res://assets/people/%s.fbx" % file).instantiate()
-	var sc := PERSON_SCALE * (1.0 if kind == "capitao" else rng.randf_range(0.94, 1.05))
+	var model: Node3D = scene(HUMAN_F if female else HUMAN_M).instantiate()
+	var sc := (1.0 if kind == "capitao" else rng.randf_range(0.95, 1.04))
 	model.scale = Vector3.ONE * sc
 	model.rotation.y = PI   # o modelo olha para +Z; no jogo a frente é -Z
+	if female:
+		model.position.y = -0.017   # a mulher usa as animações do homem (bacia um pouco mais alta)
 	root.add_child(model)
-	# cores: moradores recebem roupas e tons de pele variados
-	var colors := {}
-	if kind == "homem" or kind == "mulher":
-		colors["coat"] = CLOTH[rng.randi() % CLOTH.size()]
-		colors["pants"] = CLOTH[rng.randi() % CLOTH.size()].darkened(0.35)
-		colors["skin"] = SKIN_TONES[rng.randi() % SKIN_TONES.size()]
-		colors["hair"] = HAIR[rng.randi() % HAIR.size()]
-	colors.merge(opts, true)
-	_dress(model, colors)
+	var sk: Skeleton3D = model.find_children("*", "Skeleton3D", true, false)[0]
+	# cores
+	var coat: Color = opts.get("coat", CLOTH[rng.randi() % CLOTH.size()])
+	var pants: Color = opts.get("pants", CLOTH[rng.randi() % CLOTH.size()].darkened(0.35))
+	var waist: Color = opts.get("tie", CLOTH[rng.randi() % CLOTH.size()] if kind != "capitao" else Color(0.72, 0.6, 0.4))
+	var skin: Color = opts.get("skin", SKIN_TONES[rng.randi() % SKIN_TONES.size()])
+	var hair_c: Color = opts.get("hair", HAIR[rng.randi() % HAIR.size()])
+	if opts.get("wig", false):
+		hair_c = Color(0.86, 0.85, 0.8)   # peruca empoada dos oficiais
+	var cl := _clothes(look, coat, pants, waist, rng)
+	# animações (a mulher usa a biblioteca do homem)
+	var ap: AnimationPlayer
+	var aps := model.find_children("*", "AnimationPlayer", true, false)
+	if aps.is_empty():
+		ap = AnimationPlayer.new()
+		model.add_child(ap)
+		ap.add_animation_library("", _anim_library())
+	else:
+		ap = aps[0]
+		_fix_loops(ap)
+	var p := {"root": root, "ap": ap, "pre": "", "cur": "", "model": model, "sk": sk, "female": female, "human": true}
+	# cabelo e chapéu
+	var hs: int = opts.get("hair_style", -1)
+	if hs < 0:
+		hs = ([2, 2, 3][rng.randi() % 3]) if female else ([1, 1, 0, 3][rng.randi() % 4])
+		if kind == "oficial" or kind == "capitao":
+			hs = 1 if not female else 3
+	var style: Dictionary = opts.get("style", {})
 	if (kind == "homem" or kind == "mulher") and not opts.has("style") and not opts.has("file"):
-		var st := {}
-		if file.contains("Female"):
-			if file != "Smooth_Female_Dress":
-				st["petticoat"] = CLOTH[rng.randi() % CLOTH.size()].darkened(0.1)
-			st["apron"] = rng.randf() < 0.5
-			if file == "Smooth_Female_Dress" and st["apron"]:
-				st["petticoat"] = colors["coat"]
-			if rng.randf() < 0.6:
+		style = {}
+		if female:
+			if look == "corpete" or rng.randf() < 0.5:
+				style["petticoat"] = CLOTH[rng.randi() % CLOTH.size()].darkened(0.1) if look == "corpete" else coat
+			else:
+				style["petticoat"] = coat
+			style["apron"] = rng.randf() < 0.5
+			if not opts.has("hat") and rng.randf() < 0.55:
 				opts["hat"] = 5
 		else:
-			if rng.randf() < 0.65:
-				st["skirt"] = colors["coat"]
-			st["belt"] = Color(0.18, 0.12, 0.07)
-			if rng.randf() < 0.55:
-				opts["hat"] = [1, 3, 3][rng.randi() % 3]
-		opts["style"] = st
-	var ap: AnimationPlayer = model.find_children("*", "AnimationPlayer", true, false)[0]
-	_fix_loops(ap)
-	var pre := "HumanArmature|Female_" if file.contains("Female") else "HumanArmature|Man_"
-	var p := {"root": root, "ap": ap, "pre": pre, "cur": "", "model": model}
+			if look == "casaca":
+				style["skirt"] = coat
+			elif look == "camisa" and rng.randf() < 0.4:
+				style["slops"] = LINEN.darkened(rng.randf() * 0.2)
+			style["belt"] = Color(0.18, 0.12, 0.07)
+			if not opts.has("hat") and rng.randf() < 0.55:
+				opts["hat"] = [1, 3, 3, 2][rng.randi() % 4]
+	if female and look == "vestido" and not style.has("petticoat"):
+		style["petticoat"] = coat
+	# por baixo da saia ou dos calções largos, a perna tem a mesma cor (nada "vaza" ao andar)
+	if style.has("petticoat"):
+		cl["breeches"] = style["petticoat"]
+		cl["stock"] = (style["petticoat"] as Color).darkened(0.1)
+	elif style.has("slops"):
+		cl["breeches"] = style["slops"]
+	for mi: MeshInstance3D in sk.find_children("*", "MeshInstance3D", true, false):
+		mi.visibility_range_end = 170.0
+		var mat: Material = mi.mesh.surface_get_material(0)
+		var nm := mat.resource_name if mat else ""
+		if nm.contains("Superhero"):
+			mi.material_override = _body_material(female, skin, cl)
+		elif nm.contains("Hair"):
+			mi.material_override = _tinted_keep(mat, hair_c.lightened(0.1))
 	var hat := int(opts.get("hat", 0))
-	if hat > 0:
-		attach(p, "Head", hat_mesh(hat), Vector3(0, 0.155, 0.01), sc)
-	if opts.has("style"):
-		Attire.apply(p, opts["style"])
+	Attire.wear(p, "Head", Attire.hair(hs, hair_c, female), Attire.hair_material())
+	if hat == 2:
+		Attire.wear(p, "Head", Attire.bandana(Color(0.62, 0.1, 0.08) if rng.randf() < 0.6 else Color(0.15, 0.2, 0.45), female))
+	elif hat == 5:
+		Attire.wear(p, "Head", Attire.coif(female))
+	elif hat > 0:
+		var b: Dictionary = Attire.BODY[female]
+		var sk_c: Vector3 = b["skull"]
+		Attire.wear(p, "Head", hat_mesh(hat), null, Transform3D(Basis().scaled(Vector3.ONE * 0.9), Vector3(0, b["top"] - 0.065, sk_c.z)))
+	Attire.apply(p, style)
 	if opts.get("musket", false):
-		var sk: Skeleton3D = model.find_children("*", "Skeleton3D", true, false)[0]
 		var rig := MusketRig.new()
 		sk.add_child(rig)
-		rig.setup(root, sk)
+		rig.setup(root, sk, opts.get("bayonet", false))
 		p["rig"] = rig
 	play(p, "Idle")
 	ap.seek(rng.randf() * 2.0, true)
 	return p
 
 
-static func _dress(model: Node3D, colors: Dictionary) -> void:
-	for mi in model.find_children("*", "MeshInstance3D", true, false):
-		var m: Mesh = mi.mesh
-		for s in m.get_surface_count():
-			var mat: Material = m.surface_get_material(s)
-			if mat == null:
-				continue
-			var nm := mat.resource_name
-			var c: Variant = null
-			if nm in COAT_SLOTS and colors.has("coat"):
-				c = colors["coat"]
-				if nm == "LightJacket" or nm == "Shirt2":
-					c = (c as Color).lightened(0.2)
-			elif nm in PANTS_SLOTS and colors.has("pants"):
-				c = colors["pants"]
-			elif nm == "Skin" and colors.has("skin"):
-				c = colors["skin"]
-			elif (nm == "Hair" or nm == "Hair2" or nm == "HairBase") and colors.has("hair"):
-				c = colors["hair"]
-			elif nm == "TieTexture" and colors.has("tie"):
-				c = colors["tie"]
-			elif nm == "Socks":
-				c = colors.get("socks", STOCKING)
-			elif nm == "Shoes":
-				c = Color(0.1, 0.07, 0.05)
-			elif nm == "Shirt2" and colors.has("coat"):
-				c = (colors["coat"] as Color).lightened(0.25)
-			if c != null:
-				mi.set_surface_override_material(s, _tinted(mat, c))
-
-
-static func _tinted(mat: Material, c: Color) -> Material:
-	var key := "%d_%s" % [mat.get_instance_id(), c.to_html()]
+static func _tinted_keep(mat: Material, c: Color) -> Material:
+	var key := "k%d_%s" % [mat.get_instance_id(), c.to_html()]
 	if not _mats.has(key):
 		var nm: Material = mat.duplicate()
 		if nm is BaseMaterial3D:
 			(nm as BaseMaterial3D).albedo_color = c
-			(nm as BaseMaterial3D).albedo_texture = null
 		_mats[key] = nm
 	return _mats[key]
-
-
-## Prende uma malha a um osso (chapéu na cabeça, mosquete na mão), compensando a escala do esqueleto.
-static func attach(p: Dictionary, bone: String, m: Mesh, offset: Vector3, model_scale: float, rot := Basis()) -> void:
-	var sk: Skeleton3D = p["model"].find_children("*", "Skeleton3D", true, false)[0]
-	var ba := BoneAttachment3D.new()
-	ba.bone_name = bone
-	sk.add_child(ba)
-	var mi := MeshInstance3D.new()
-	mi.mesh = m
-	var k := 1.0 / (100.0 * model_scale)
-	mi.basis = rot.scaled(Vector3.ONE * k)
-	mi.position = offset * k
-	ba.add_child(mi)
-	p[bone] = mi
 
 
 static func hat_mesh(kind: int) -> Mesh:
@@ -329,27 +421,176 @@ static func _brim(st: SurfaceTool, radius: Callable, lift: float, c: Color, trim
 		ShipBuilder._tube(st, Vector3(cos(a0) * r0, lift * (r0 - 0.15) / 0.1, sin(a0) * r0), Vector3(cos(a1) * r1, lift * (r1 - 0.15) / 0.1, sin(a1) * r1), 0.008, 0.008, trim, 3)
 
 
-## Mosquete de pederneira (~1,45 m), segurado pelo meio; o eixo Y acompanha o osso da mão.
-static func musket_mesh() -> Mesh:
-	if _meshes.has("musket"):
-		return _meshes["musket"]
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var wood := Color(0.36, 0.2, 0.1)
-	var iron := Color(0.18, 0.18, 0.2)
-	ShipBuilder._box(st, Transform3D(Basis(), Vector3(0, -0.35, 0.02)), Vector3(0.045, 0.75, 0.07), wood)
-	ShipBuilder._box(st, Transform3D(Basis(Vector3(1, 0, 0), 0.25), Vector3(0, -0.78, 0.05)), Vector3(0.05, 0.25, 0.12), wood)
-	ShipBuilder._tube(st, Vector3(0, -0.1, 0.0), Vector3(0, 0.68, 0.0), 0.016, 0.013, iron, 6)
-	ShipBuilder._box(st, Transform3D(Basis(), Vector3(0, -0.12, 0.04)), Vector3(0.03, 0.08, 0.03), iron)
-	ShipBuilder._tube(st, Vector3(0, 0.68, 0.0), Vector3(0, 0.88, 0.0), 0.006, 0.002, Color(0.75, 0.75, 0.78), 4)
-	var m := st.commit()
-	var mat := StandardMaterial3D.new()
-	mat.vertex_color_use_as_albedo = true
-	mat.vertex_color_is_srgb = true
-	mat.roughness = 0.6
-	m.surface_set_material(0, mat)
-	_meshes["musket"] = m
+## Mosquete de pederneira tipo "Brown Bess" (1,58 m): coronha de nogueira moldada, chapa de coice,
+## guarda-mato e braçadeiras de latão, fecho com cão, pederneira, fuzil e caçoleta, vareta de ferro,
+## bandoleira de couro e (opcional) baioneta de alvado. Eixo Y = da coronha (y = -0,9) para a boca (y = 0,68);
+## +Z = parte de cima do cano, +X = lado do fecho (direita do atirador).
+static func musket_mesh(bayonet := false) -> Mesh:
+	var key := "musket_%s" % bayonet
+	if _meshes.has(key):
+		return _meshes[key]
+	var wood := Color(0.33, 0.17, 0.08)
+	var wood_dark := Color(0.24, 0.12, 0.06)
+	var brass := Color(0.8, 0.62, 0.26)
+	var iron := Color(0.2, 0.2, 0.22)
+	var steel := Color(0.55, 0.56, 0.58)
+	var leather := Color(0.45, 0.3, 0.16)
+	var sw := SurfaceTool.new()   # madeira e couro
+	sw.begin(Mesh.PRIMITIVE_TRIANGLES)
+	sw.set_uv(Vector2.ZERO)
+	var sm := SurfaceTool.new()   # metais
+	sm.begin(Mesh.PRIMITIVE_TRIANGLES)
+	sm.set_uv(Vector2.ZERO)
+	# coronha: seções (y, topo z, base z, meia-largura)
+	var stock := [
+		[-0.9, -0.045, -0.178, 0.021], [-0.86, -0.04, -0.172, 0.024], [-0.78, -0.033, -0.145, 0.023],
+		[-0.7, -0.026, -0.112, 0.02], [-0.64, -0.02, -0.08, 0.017], [-0.59, -0.016, -0.06, 0.0155],
+		[-0.54, -0.006, -0.058, 0.019], [-0.46, -0.004, -0.054, 0.021], [-0.34, -0.004, -0.046, 0.02],
+		[-0.26, -0.006, -0.038, 0.016], [-0.1, -0.007, -0.034, 0.0145], [0.3, -0.008, -0.031, 0.014], [0.58, -0.008, -0.029, 0.013]]
+	_loft(sw, stock, wood, 12)
+	# pente (comb) mais escuro na parte de cima da coronha
+	_loft(sw, [[-0.88, -0.041, -0.06, 0.017], [-0.72, -0.027, -0.05, 0.014], [-0.66, -0.022, -0.045, 0.012]], wood_dark, 8)
+	# chapa de coice de latão e ponteira do guarda-mão
+	_loft(sm, [[-0.905, -0.043, -0.18, 0.0225], [-0.892, -0.043, -0.18, 0.0225]], brass, 12)
+	ShipBuilder._box(sm, Transform3D(Basis(), Vector3(0, -0.85, -0.042)), Vector3(0.012, 0.09, 0.006), brass)
+	_loft(sm, [[0.58, -0.006, -0.031, 0.0145], [0.61, -0.006, -0.03, 0.0135]], brass, 10)
+	# cano (sai da coronha e vai até a boca), com reforço na culatra e anel na boca
+	ShipBuilder._tube(sm, Vector3(0, -0.52, 0.0), Vector3(0, -0.3, 0.0), 0.0165, 0.0155, iron, 12)
+	ShipBuilder._tube(sm, Vector3(0, -0.3, 0.0), Vector3(0, 0.68, 0.0), 0.0155, 0.0118, iron, 12)
+	ShipBuilder._tube(sm, Vector3(0, 0.665, 0.0), Vector3(0, 0.68, 0.0), 0.0128, 0.0128, iron, 12)
+	_disc(sm, Vector3(0, 0.68, 0), 0.0128, Color(0.03, 0.03, 0.03))
+	ShipBuilder._box(sm, Transform3D(Basis(), Vector3(0, 0.645, 0.013)), Vector3(0.004, 0.012, 0.006), brass)   # massa de mira
+	ShipBuilder._box(sm, Transform3D(Basis(), Vector3(0, -0.6, -0.012)), Vector3(0.012, 0.12, 0.004), iron)      # espiga da culatra
+	# vareta de ferro sob o cano, com 3 passadores de latão
+	ShipBuilder._tube(sm, Vector3(0, -0.28, -0.036), Vector3(0, 0.672, -0.036), 0.0045, 0.0045, steel, 6)
+	ShipBuilder._tube(sm, Vector3(0, 0.668, -0.036), Vector3(0, 0.682, -0.036), 0.007, 0.006, steel, 6)
+	for y in [0.0, 0.3, 0.55]:
+		ShipBuilder._tube(sm, Vector3(0, y - 0.025, -0.036), Vector3(0, y + 0.025, -0.036), 0.0075, 0.0075, brass, 8)
+	# fecho de pederneira (lado direito): chapa, cão com pederneira, fuzil (bateria) e caçoleta
+	var lx := 0.021
+	_loft(sm, [[-0.48, -0.006, -0.036, 0.0], [-0.46, -0.004, -0.04, 0.0], [-0.36, -0.004, -0.036, 0.0], [-0.34, -0.008, -0.03, 0.0]], iron, 4, lx + 0.003)
+	var cock := Transform3D(Basis(Vector3.RIGHT, -0.5), Vector3(lx + 0.009, -0.44, 0.004))
+	ShipBuilder._box(sm, cock, Vector3(0.006, 0.05, 0.012), iron)
+	ShipBuilder._box(sm, Transform3D(Basis(Vector3.RIGHT, 0.4), Vector3(lx + 0.009, -0.425, 0.026)), Vector3(0.01, 0.022, 0.012), iron)   # mandíbulas
+	ShipBuilder._box(sm, Transform3D(Basis(), Vector3(lx + 0.009, -0.411, 0.03)), Vector3(0.012, 0.012, 0.006), Color(0.3, 0.3, 0.32))  # pederneira
+	ShipBuilder._box(sm, Transform3D(Basis(Vector3.RIGHT, 0.15), Vector3(lx + 0.009, -0.392, 0.024)), Vector3(0.012, 0.004, 0.032), steel)  # fuzil
+	ShipBuilder._box(sm, Transform3D(Basis(), Vector3(lx + 0.007, -0.392, 0.005)), Vector3(0.014, 0.022, 0.008), iron)   # caçoleta
+	ShipBuilder._tube(sm, Vector3(lx + 0.004, -0.37, -0.02), Vector3(lx + 0.004, -0.355, -0.02), 0.006, 0.006, iron, 6)  # mola
+	# contraplaca de latão do lado esquerdo
+	ShipBuilder._box(sm, Transform3D(Basis(), Vector3(-0.0215, -0.41, -0.024)), Vector3(0.003, 0.12, 0.012), brass)
+	# guarda-mato e gatilho
+	var guard := [Vector3(0, -0.58, -0.062), Vector3(0, -0.545, -0.088), Vector3(0, -0.5, -0.094), Vector3(0, -0.455, -0.085), Vector3(0, -0.43, -0.058)]
+	for i in guard.size() - 1:
+		ShipBuilder._tube(sm, guard[i], guard[i + 1], 0.0045, 0.0045, brass, 6)
+	ShipBuilder._box(sm, Transform3D(Basis(), Vector3(0, -0.51, -0.058)), Vector3(0.008, 0.16, 0.005), brass)
+	ShipBuilder._tube(sm, Vector3(0, -0.495, -0.056), Vector3(0, -0.505, -0.08), 0.0035, 0.0025, iron, 5)
+	# bandoleira de couro (passador do guarda-mato até o guarda-mão), um pouco frouxa
+	var sl := [Vector3(0, -0.47, -0.095), Vector3(0, -0.2, -0.105), Vector3(0, 0.05, -0.098), Vector3(0, 0.18, -0.04)]
+	for i in sl.size() - 1:
+		ShipBuilder._box(sw, _seg_xf(sl[i], sl[i + 1]), Vector3(0.024, sl[i].distance_to(sl[i + 1]), 0.003), leather)
+	ShipBuilder._tube(sm, Vector3(-0.012, 0.18, -0.036), Vector3(0.012, 0.18, -0.036), 0.008, 0.008, brass, 6)
+	if bayonet:
+		# alvado em volta da boca e lâmina triangular deslocada para o lado
+		ShipBuilder._tube(sm, Vector3(0, 0.6, 0.0), Vector3(0, 0.68, 0.0), 0.016, 0.016, steel, 10)
+		ShipBuilder._box(sm, Transform3D(Basis(), Vector3(0.017, 0.672, 0.014)), Vector3(0.012, 0.016, 0.01), steel)
+		var b0 := Vector3(0.024, 0.68, 0.022)
+		var b1 := Vector3(0.024, 1.09, 0.026)
+		sm.set_color(Color(0.72, 0.73, 0.75))
+		var tri := [Vector3(0.0, 0, 0.0), Vector3(0.007, 0, 0.0), Vector3(0.0035, 0, 0.011)]
+		for i in 3:
+			var p0: Vector3 = b0 + tri[i] * 1.4
+			var p1: Vector3 = b0 + tri[(i + 1) % 3] * 1.4
+			var n := ((p1 - p0).cross(Vector3.UP)).normalized()
+			sm.set_normal(n)
+			for v in [p0, p1, b1, p0, b1, b1]:
+				sm.add_vertex(v)
+	var m := ArrayMesh.new()
+	sw.commit(m)
+	sm.commit(m)
+	var mw := StandardMaterial3D.new()
+	mw.vertex_color_use_as_albedo = true
+	mw.vertex_color_is_srgb = true
+	mw.roughness = 0.5
+	mw.specular = 0.45
+	mw.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var mm := StandardMaterial3D.new()
+	mm.vertex_color_use_as_albedo = true
+	mm.vertex_color_is_srgb = true
+	mm.metallic = 0.75
+	mm.roughness = 0.32
+	mm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.surface_set_material(0, mw)
+	m.surface_set_material(1, mm)
+	_meshes[key] = m
 	return m
+
+
+static func _seg_xf(a: Vector3, b: Vector3) -> Transform3D:
+	var y := (b - a).normalized()
+	var x := Vector3.RIGHT
+	var z := x.cross(y).normalized()
+	return Transform3D(Basis(x, y, z), (a + b) * 0.5)
+
+
+## Superfície "lofted" por seções arredondadas ao longo de Y: [y, topo z, base z, meia-largura].
+## Com x_plate > 0 vira uma chapa plana no lado direito (x = x_plate).
+static func _loft(st: SurfaceTool, secs: Array, c: Color, seg := 12, x_plate := 0.0) -> void:
+	st.set_color(c)
+	var rings := []
+	for s in secs:
+		var ring := []
+		var mz: float = (s[1] + s[2]) * 0.5
+		var hz: float = (s[1] - s[2]) * 0.5
+		for i in seg:
+			var a := TAU * i / seg
+			var ca := cos(a)
+			var sa := sin(a)
+			var x: float = s[3] * signf(ca) * pow(absf(ca), 0.7)
+			var z: float = mz + hz * signf(sa) * pow(absf(sa), 0.7)
+			if x_plate > 0.0:
+				x = x_plate + 0.002 * ca
+			ring.append(Vector3(x, s[0], z))
+		rings.append(ring)
+	for r in rings.size() - 1:
+		for i in seg:
+			var j := (i + 1) % seg
+			var a: Vector3 = rings[r][i]
+			var b: Vector3 = rings[r][j]
+			var c2: Vector3 = rings[r + 1][j]
+			var d: Vector3 = rings[r + 1][i]
+			var n := (b - a).cross(d - a).normalized()
+			if n.dot(Vector3(a.x, 0, a.z - (secs[r][1] + secs[r][2]) * 0.5)) < 0.0:
+				n = -n
+				st.set_normal(n)
+				for v in [a, c2, b, a, d, c2]:
+					st.add_vertex(v)
+			else:
+				st.set_normal(n)
+				for v in [a, b, c2, a, c2, d]:
+					st.add_vertex(v)
+	# tampas nas pontas
+	for e in [0, rings.size() - 1]:
+		var ctr := Vector3.ZERO
+		for v in rings[e]:
+			ctr += v
+		ctr /= seg
+		var n := Vector3.DOWN if e == 0 else Vector3.UP
+		st.set_normal(n)
+		for i in seg:
+			var a: Vector3 = rings[e][i]
+			var b: Vector3 = rings[e][(i + 1) % seg]
+			for v in ([ctr, b, a] if e == 0 else [ctr, a, b]):
+				st.add_vertex(v)
+
+
+static func _disc(st: SurfaceTool, c: Vector3, r: float, col: Color) -> void:
+	st.set_color(col)
+	st.set_normal(Vector3.UP)
+	for i in 10:
+		var a0 := TAU * i / 10
+		var a1 := TAU * (i + 1) / 10
+		for v in [c, c + Vector3(cos(a1) * r, 0.001, sin(a1) * r), c + Vector3(cos(a0) * r, 0.001, sin(a0) * r)]:
+			st.add_vertex(v)
 
 
 ## O capitão, com a roupa, a cor, o chapéu e a arma escolhidos pelo jogador.
@@ -391,8 +632,8 @@ static func soldier(nation: int, rng: RandomNumberGenerator, officer := false) -
 	if officer:
 		st["sash"] = Color(0.6, 0.08, 0.12) if nation != Game.FRA else Color(0.85, 0.85, 0.85)
 		st["cravat"] = true
-	return person("oficial", rng, {"coat": u["coat"], "pants": u["breeches"], "tie": u["waist"],
-		"skin": SKIN_TONES[rng.randi() % SKIN_TONES.size()], "hat": 1 if officer else 6, "musket": not officer, "style": st})
+	return person("oficial", rng, {"coat": u["coat"], "pants": u["breeches"], "tie": u["waist"], "look": "casaca", "wig": officer, "hair_style": 1,
+		"skin": SKIN_TONES[rng.randi() % SKIN_TONES.size()], "hat": 1 if officer else 6, "musket": not officer, "bayonet": true, "style": st})
 
 
 ## Posição do mosquete (MusketRig.CARRY, ORDER, AIM ou NONE).
@@ -403,7 +644,7 @@ static func musket_pose(p: Dictionary, mode: int) -> void:
 
 static func play(p: Dictionary, anim: String, speed := 1.0) -> void:
 	var ap: AnimationPlayer = p["ap"]
-	var full: String = p["pre"] + anim
+	var full: String = p["pre"] + (HUMAN_ANIMS.get(anim, anim) if p.get("human", false) else anim)
 	if p["cur"] != full:
 		if ap.has_animation(full):
 			ap.play(full, 0.25)
@@ -438,8 +679,9 @@ static func warm() -> void:
 			"rock_tallA", "rock_tallB", "log", "stump_old"]]]:
 		for piece in d[1]:
 			mesh("res://assets/kenney/%s/%s.glb" % [d[0], piece])
-	for f in PEOPLE_M + PEOPLE_F + [OFFICER]:
-		scene("res://assets/people/%s.fbx" % f)
+	scene(HUMAN_M)
+	scene(HUMAN_F)
+	_anim_library()
 	scene("res://assets/animals/Horse.fbx")
 	for n in 6:
 		town_material(n)
