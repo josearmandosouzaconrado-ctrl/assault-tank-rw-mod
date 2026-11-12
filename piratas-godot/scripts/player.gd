@@ -2,7 +2,7 @@ class_name PlayerController
 extends Node3D
 ## Câmeras (terceira pessoa, timão em primeira pessoa, luneta) e o modo a pé nas ilhas.
 
-enum Mode { THIRD, HELM, FOOT, HORSE }
+enum Mode { THIRD, HELM, FOOT, HORSE, BOARD }
 
 var cam: Camera3D
 var mode := Mode.THIRD
@@ -42,7 +42,10 @@ var hp := 100.0
 var _hurt_t := 0.0
 var musket_cd := 0.0
 var _shoot_anim := 0.0
+var _slash_t := 0.0
 var hud_ref: Node
+var board: Boarding          # luta de abordagem em andamento
+var _board_prev := Mode.THIRD
 
 
 func _ready() -> void:
@@ -76,13 +79,13 @@ func look(d: Vector2) -> void:
 		Mode.HELM:
 			helm_yaw = clampf(helm_yaw - d.x * k, -2.6, 2.6)
 			helm_pitch = clampf(helm_pitch - d.y * k, -0.8, 0.6)
-		Mode.FOOT:
+		Mode.FOOT, Mode.BOARD:
 			foot_yaw -= d.x * k
 			foot_pitch = clampf(foot_pitch - d.y * k, -1.1, 0.45)
 
 
 func cycle_camera() -> void:
-	if on_land():
+	if on_land() or mode == Mode.BOARD:
 		return
 	mode = Mode.HELM if mode == Mode.THIRD else Mode.THIRD
 	spyglass = false
@@ -183,6 +186,23 @@ func dismount() -> void:
 	horse = null
 	mode = Mode.FOOT
 	_make_avatar()
+
+
+# ---------------------------------------------------------------- abordagem em tempo real
+func start_boarding(target: Ship, enemy_crew: int, done: Callable) -> void:
+	_board_prev = mode if mode != Mode.BOARD else Mode.THIRD
+	spyglass = false
+	sail_target = 0.0
+	mode = Mode.BOARD
+	board = Boarding.new(self, target, World.I.player, enemy_crew, done)
+
+
+func end_boarding() -> void:
+	if board:
+		board.cleanup()
+	board = null
+	mode = _board_prev
+	_cam_init = false
 
 
 func near_horse() -> Horse:
@@ -315,7 +335,12 @@ func _process(delta: float) -> void:
 	_hurt_t += delta
 	if _hurt_t > 6.0 and hp < 100.0:
 		hp = minf(100.0, hp + delta * 4.0)
-	if mode == Mode.FOOT:
+	if mode == Mode.BOARD:
+		if board:
+			board.update(delta)
+		ship.rudder = 0.0
+		ship.sail_level = 0.0
+	elif mode == Mode.FOOT:
 		_foot(delta)
 		_update_followers(delta, foot_pos, avatar_yaw)
 	elif mode == Mode.HORSE:
@@ -349,7 +374,7 @@ func _process(delta: float) -> void:
 		target_fov = 13.0
 	elif mode == Mode.HELM:
 		target_fov = 72.0
-	elif mode == Mode.FOOT:
+	elif mode == Mode.FOOT or mode == Mode.BOARD:
 		target_fov = 74.0
 	elif mode == Mode.HORSE:
 		target_fov = 66.0
@@ -432,6 +457,7 @@ func _make_avatar() -> void:
 	_free_avatar()
 	var rr := RandomNumberGenerator.new()
 	avatar = Assets.captain(rr, true)
+	avatar["sword"] = Attire.wear(avatar, "hand_r", Attire.cutlass(avatar.get("female", false)), Attire.metal_material())
 	World.I.add_child(avatar["root"])
 	avatar["root"].global_position = foot_pos
 	avatar["root"].rotation.y = avatar_yaw
@@ -495,6 +521,39 @@ func shoot_musket() -> void:
 		Game.notify("Errou!", Color(1, 1, 1, 0.8))
 
 
+## Golpe de sabre a pé: o mosquete fica no ombro esquerdo e a mão direita usa o sabre.
+func sword_attack() -> void:
+	if mode != Mode.FOOT or avatar.is_empty() or _slash_t > 0.0 or digging > 0.0:
+		return
+	_slash_t = 0.5
+	avatar["cur"] = ""
+	_shoot_anim = 0.0
+	Assets.musket_pose(avatar, MusketRig.CARRY)
+	Assets.play(avatar, "Sword" if _rng.randf() < 0.5 else "Sword2", 1.35)
+	Sfx.play("click", -12.0)
+	if town == null:
+		return
+	var best := {}
+	var bd := 2.8
+	for e in town.people:
+		if e["kind"] != "guarda" or not e.get("alive", true):
+			continue
+		var d: float = e["p"]["root"].global_position.distance_to(foot_pos)
+		if d < bd:
+			bd = d
+			best = e
+	if best.is_empty():
+		return
+	var to: Vector3 = best["p"]["root"].global_position - foot_pos
+	avatar_yaw = atan2(-to.x, -to.z)
+	avatar["root"].rotation.y = avatar_yaw
+	town.provoke()
+	if _rng.randf() < 0.7:
+		town.kill(best)
+	else:
+		Game.notify("O guarda aparou o golpe!", Color(1, 1, 1, 0.8))
+
+
 ## Ferimento a pé (tiros dos guardas).
 func foot_hit(dmg: float) -> void:
 	if not on_land():
@@ -525,6 +584,9 @@ func _foot(delta: float) -> void:
 		mv.x += 1.0
 	mv = mv.limit_length(1.0)
 	_shoot_anim = maxf(0.0, _shoot_anim - delta)
+	_slash_t = maxf(0.0, _slash_t - delta)
+	if avatar.has("sword") and is_instance_valid(avatar["sword"]):
+		avatar["sword"].visible = _shoot_anim <= 0.0 and digging <= 0.0
 	if digging > 0.0:
 		mv = Vector2.ZERO
 		var before := digging
@@ -564,9 +626,9 @@ func _foot(delta: float) -> void:
 			Assets.musket_pose(avatar, MusketRig.CARRY)
 		if wdir.length() > 0.05:
 			avatar_yaw = lerp_angle(avatar_yaw, atan2(-wdir.x, -wdir.y), 1.0 - exp(-delta * 10.0))
-			if _shoot_anim <= 0.0:
+			if _shoot_anim <= 0.0 and _slash_t <= 0.0:
 				Assets.play(avatar, "Run" if spd > 3.0 else "Walk", 1.0 if spd > 3.0 else 1.1)
-		elif digging <= 0.0:
+		elif digging <= 0.0 and _slash_t <= 0.0:
 			Assets.play(avatar, "Idle")
 		root.rotation.y = avatar_yaw
 	# câmera de terceira pessoa por cima do ombro

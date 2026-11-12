@@ -115,6 +115,39 @@ func _run() -> void:
 	e.take_hit(30.0, 0, p, e.global_position, true, Game.career)
 	await _wait(3.0)
 	await _shot("07_naufragio")
+	# abordagem em tempo real
+	var bt := w.spawn_ship(2, Game.ESP if Game.career != Game.ESP else Game.ENG, Ship.Role.PATROL, p.pos2() + Vector2(-p.forward().y, p.forward().x) * 30.0, p.yaw)
+	bt.hp = bt.max_hp * 0.3
+	main._board_target = bt
+	main._do_board()
+	main.ctl.orbit_pitch = -0.2
+	await _wait(1.5)
+	await _shot("07b_abordagem")
+	var bk := 0
+	while main.ctl.board != null and bk < 300:
+		bk += 1
+		var b: Boarding = main.ctl.board
+		# vai até o inimigo mais próximo, apara quando ele avisa e golpeia
+		var en: Dictionary = b._nearest(b.cap_pos, 1, 60.0)
+		if not en.is_empty():
+			var to: Vector3 = en["pos"] - b.cap_pos
+			if to.length() > 1.6:
+				b.cap_pos = b._clamp_deck(b.cap_pos + to.normalized() * 0.5)
+			if en["state"] == "windup" and en["t"] < 0.4:
+				b.block()
+			else:
+				b.attack()
+			if bk % 25 == 0:
+				b.pistol()
+		if bk == 20:
+			await _shot("07c_espada")
+		await _wait(0.2)
+	await _wait(0.5)
+	await _shot("07d_fim_abordagem")
+	print("Abordagem: terminou=", main.ctl.board == null, " modo=", main.ctl.mode, " navio rendido=", bt.surrendered, " passos=", bk)
+	main.hud.close_dialog()
+	get_tree().paused = false
+	main.hud.modal = false
 	# noite
 	Game.time_of_day = 0.93
 	w._update_environment()
@@ -198,6 +231,16 @@ func _run() -> void:
 	main.ctl.town.provoke()
 	await _wait(3.0)
 	await _shot("16a_tiroteio")
+	var g0: Dictionary = main.ctl.town.nearest_enemy(main.ctl.foot_pos, 300.0)
+	if not g0.is_empty():
+		var g0p: Vector3 = g0["p"]["root"].global_position
+		main.ctl.foot_pos = g0p + Vector3(1.5, 0, 0)
+		main.ctl.foot_yaw = atan2(1.0, 0.0)
+		await _wait(0.2)
+		main.ctl.sword_attack()
+		await _wait(0.25)
+		await _shot("16a2_sabre")
+		print("Sabre: guarda vivo=", g0.get("alive", true))
 	for k in 6:
 		main.ctl.musket_cd = 0.0
 		var g: Dictionary = main.ctl.town.nearest_enemy(main.ctl.foot_pos, 200.0)

@@ -615,7 +615,7 @@ static func captain(rng: RandomNumberGenerator, with_musket := true) -> Dictiona
 		st["belt"] = Color(0.2, 0.13, 0.07)
 	if os.get("petticoat", false):
 		st["petticoat"] = coat.darkened(0.2)
-	var opts := {"file": o["id"], "coat": coat, "pants": Color(0.18, 0.16, 0.14), "hat": Game.hat, "musket": with_musket, "style": st}
+	var opts := {"file": o["id"], "coat": coat, "skin": SKIN_TONES[1], "hair": HAIR[1], "pants": Color(0.18, 0.16, 0.14), "hat": Game.hat, "musket": with_musket, "style": st}
 	return person("capitao", rng, opts)
 
 

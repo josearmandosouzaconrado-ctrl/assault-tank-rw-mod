@@ -226,10 +226,22 @@ static func chest(facing: Variant, belts: bool, cravat: bool, sash: Variant, fem
 		_path(st, [Vector3(-0.13, 1.43, -0.118), Vector3(-0.15, 1.47, 0.03), Vector3(-0.13, 1.43, 0.168)], 0.055, Vector3.UP, BUFF)
 		ShipBuilder._box(st, Transform3D(Basis(), Vector3(0.21, 0.97, 0.03)), Vector3(0.055, 0.12, 0.17), Color(0.13, 0.08, 0.05))
 		ShipBuilder._box(st, Transform3D(Basis(), Vector3(0.24, 0.99, 0.03)), Vector3(0.008, 0.05, 0.06), BRASS)
-	if sash != null:
-		var wr: Vector2 = b["waist_r"] + Vector2(0.008, 0.006)
-		_ring(st, b["waist_y"] + 0.03, b["waist_y"] - 0.05, wr, wr + Vector2(0.006, 0.006), b["waist_z"], sash, [], 20)
-		ShipBuilder._box(st, Transform3D(Basis(Vector3(0, 0, 1), 0.2), Vector3(0.15, 0.88, -0.1)), Vector3(0.05, 0.17, 0.02), sash)
+	_cache[k] = st.commit()
+	return _cache[k]
+
+
+## Faixa de oficial amarrada na cintura, com as pontas caindo do lado.
+static func sash(c: Color, female := false) -> Mesh:
+	var k := "sash" + _key([c, female])
+	if _cache.has(k):
+		return _cache[k]
+	var b := _b(female)
+	var st := _begin()
+	var wr: Vector2 = b["waist_r"] + Vector2(0.01, 0.008)
+	_ring(st, b["waist_y"] + 0.035, b["waist_y"] - 0.045, wr, wr + Vector2(0.006, 0.006), b["waist_z"], c, [], 20)
+	var knot := Vector3(wr.x * 0.75, b["waist_y"] - 0.01, b["waist_z"] - wr.y * 0.66)
+	Island._sphere(st, knot, Vector3(0.03, 0.03, 0.02), c.darkened(0.1), 6, 4)
+	ShipBuilder._box(st, Transform3D(Basis(Vector3(0, 0, 1), 0.15), knot + Vector3(0.012, -0.11, -0.004)), Vector3(0.05, 0.19, 0.012), c)
 	_cache[k] = st.commit()
 	return _cache[k]
 
@@ -396,6 +408,63 @@ static func coif(female := true) -> Mesh:
 	return _cache[k]
 
 
+## Sabre de abordagem (cutelo naval) na mão direita do homem em T-pose: cabo atravessando o punho,
+## guarda de latão em concha e lâmina curva apontando para a frente.
+static func cutlass(female := false) -> Mesh:
+	var k := "cutlass" + _key([female])
+	if _cache.has(k):
+		return _cache[k]
+	var b := _b(female)
+	var fa: Vector3 = b["forearm"]
+	var g := Vector3(b["wrist"] + 0.07, fa.y - 0.012, fa.z - 0.005)   # centro do punho fechado
+	var d := Vector3(0, 0.22, -1).normalized()
+	var st := _begin()
+	ShipBuilder._tube(st, g - d * 0.06, g + d * 0.05, 0.016, 0.015, Color(0.2, 0.12, 0.07), 8)   # cabo
+	Island._sphere(st, g - d * 0.07, Vector3.ONE * 0.02, BRASS, 6, 4)                              # pomo
+	# guarda em concha e arco das juntas
+	Island._sphere(st, g + d * 0.07, Vector3(0.055, 0.045, 0.018), BRASS, 10, 5)
+	ShipBuilder._tube(st, g - d * 0.065 + Vector3(0, 0.035, 0), g + d * 0.065 + Vector3(0, 0.045, 0), 0.006, 0.006, BRASS, 5)
+	# lâmina curva (larga, com ponta) — dois lados
+	var up := Vector3.UP - d * Vector3.UP.dot(d)
+	up = up.normalized()
+	var n := d.cross(up).normalized()
+	var steel := Color(0.78, 0.79, 0.82)
+	var pts := []
+	for i in 9:
+		var t := float(i) / 8.0
+		var along := 0.08 + t * 0.66
+		var curve := 0.05 * t * t
+		var w := lerpf(0.036, 0.03, t) * (1.0 if t < 0.85 else (1.0 - (t - 0.85) / 0.15) * 0.9 + 0.1)
+		pts.append([g + d * along + up * curve, w])
+	st.set_color(steel)
+	for i in pts.size() - 1:
+		var a0: Vector3 = pts[i][0]
+		var a1: Vector3 = pts[i + 1][0]
+		var w0: float = pts[i][1]
+		var w1: float = pts[i + 1][1]
+		var e0 := a0 - up * w0
+		var e1 := a1 - up * w1
+		for sgn: float in [1.0, -1.0]:
+			st.set_normal(n * sgn)
+			var o := n * 0.002 * sgn
+			for v in [a0 + o, e0 + o, e1 + o, a0 + o, e1 + o, a1 + o]:
+				st.add_vertex(v)
+	_cache[k] = st.commit()
+	return _cache[k]
+
+
+static func metal_material() -> StandardMaterial3D:
+	if not _cache.has("metal_mat"):
+		var m := StandardMaterial3D.new()
+		m.vertex_color_use_as_albedo = true
+		m.vertex_color_is_srgb = true
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		m.metallic = 0.45
+		m.roughness = 0.32
+		_cache["metal_mat"] = m
+	return _cache["metal_mat"]
+
+
 # ---------------------------------------------------------------- aplicar um estilo
 ## style: "skirt"/"facing" (Color), "belts", "cravat" (bool), "sash", "petticoat", "slops" (Color), "apron" (bool), "belt" (Color)
 static func apply(p: Dictionary, style: Dictionary) -> void:
@@ -407,7 +476,9 @@ static func apply(p: Dictionary, style: Dictionary) -> void:
 		wear(p, "lowerarm_l", cuff(facing, -1.0, f))
 		wear(p, "lowerarm_r", cuff(facing, 1.0, f))
 	if facing != null or style.get("belts", false) or style.get("cravat", false) or style.has("sash"):
-		wear(p, "spine_03", chest(style.get("lapels", facing), style.get("belts", false), style.get("cravat", false), style.get("sash", null), f))
+		wear(p, "spine_03", chest(style.get("lapels", facing), style.get("belts", false), style.get("cravat", false), null, f))
+	if style.has("sash"):
+		wear(p, "spine_01", sash(style["sash"], f))
 	if style.has("belt"):
 		wear(p, "spine_01", waist_belt(style["belt"], f))
 	if style.has("petticoat"):

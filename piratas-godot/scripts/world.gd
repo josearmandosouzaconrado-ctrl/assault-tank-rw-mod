@@ -794,7 +794,7 @@ func _separate_ships() -> void:
 			continue
 		for j in range(i + 1, ships.size()):
 			var b := ships[j]
-			if b.dead:
+			if b.dead or a.lashed == b or b.lashed == a:
 				continue
 			var d := b.pos2() - a.pos2()
 			var min_d := (a.radius + b.radius) * 0.55

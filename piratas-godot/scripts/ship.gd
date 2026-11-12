@@ -41,6 +41,7 @@ var dead := false
 var sinking := 0.0
 var aggro_player := false
 var surrendered := false
+var lashed: Ship = null   # preso pelos ganchos de abordagem a outro navio
 var mission_target := false
 var velocity := Vector3.ZERO
 
@@ -206,8 +207,15 @@ func _physics_process(delta: float) -> void:
 	if dead:
 		_sink(delta)
 		return
-	if not is_player:
+	if not is_player and lashed == null:
 		_ai(delta)
+	if lashed != null:
+		speed = 0.0
+		sail_level = 0.0
+		sail_actual = 0.0
+		rudder = 0.0
+		_rudder_s = 0.0
+		_yaw_rate = 0.0
 	for s in reload:
 		reload[s] = maxf(0.0, reload[s] - delta)
 	brace_t = maxf(0.0, brace_t - delta)

@@ -409,11 +409,22 @@ func _do_board() -> void:
 		return
 	var p := world.player
 	var enemy := t.crew if not t.surrendered else int(t.crew * 0.2)
-	var res := world.resolve_boarding(enemy)
 	world.on_ship_attacked(t, p, true)
-	if not res["win"]:
+	hud.close_dialog()
+	# luta no convés em tempo real (o capitão e a tripulação contra os marujos inimigos)
+	ctl.start_boarding(t, enemy, func(win: bool): _board_done(t, enemy, win))
+
+
+func _board_done(t: Ship, enemy: int, win: bool) -> void:
+	ctl.end_boarding()
+	if t == null or not is_instance_valid(t) or t.dead:
+		return
+	var p := world.player
+	# as baixas do resto da tripulação seguem a luta do capitão
+	var res := world.resolve_boarding(enemy, 99.0 if win else 0.01)
+	if not win:
 		p.take_raw_damage(p.max_hp * 0.08)
-		t.crew = maxi(1, t.crew - int(res["killed"] * 0.5))
+		t.crew = maxi(1, t.crew - int(res["killed"] * 0.3))
 		hud.show_dialog("Repelidos!", "A tripulação inimiga resistiu. Você perdeu %d homens." % res["lost"], [["Recuar", Callable()]])
 		return
 	t.crew = 0

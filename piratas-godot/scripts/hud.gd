@@ -26,6 +26,10 @@ var mortar_btn: RoundBtn
 var bow_btn: RoundBtn
 var brace_btn: RoundBtn
 var musket_btn: RoundBtn
+var sword_btn: RoundBtn
+var parry_btn: RoundBtn
+var pistol_btn: RoundBtn
+var foot_sword_btn: RoundBtn
 var status: StatusPanel
 var compass: CompassCtl
 var minimap: MiniMap
@@ -253,7 +257,10 @@ class StatusPanel extends Control:
 		draw_string(f, Vector2(12, 24), "%s" % Game.career_title(), HORIZONTAL_ALIGNMENT_LEFT, size.x - 20, 15, GOLD)
 		draw_string(f, Vector2(12, 46), "Ouro: %d   Tripulação: %d/%d   Tropas: %d   Moral: %d%%" % [Game.gold, s.crew, s.max_crew, Game.soldiers, int(Game.morale)], HORIZONTAL_ALIGNMENT_LEFT, size.x - 16, 14, Color.WHITE)
 		var pc: PlayerController = w.ctl
-		if pc and pc.on_land():
+		if pc and pc.board:
+			_bar(54, "Vida", pc.board.hp / 100.0, Color(0.85, 0.2, 0.2).lerp(Color(0.3, 0.8, 0.3), pc.board.hp / 100.0))
+			_bar(72, "Pistola", 1.0 - pc.board.pistol_cd / Boarding.PISTOL_CD, Color(0.9, 0.75, 0.4))
+		elif pc and pc.on_land():
 			_bar(54, "Vida", pc.hp / 100.0, Color(0.85, 0.2, 0.2).lerp(Color(0.3, 0.8, 0.3), pc.hp / 100.0))
 			_bar(72, "Mosquete", pc.musket_frac(), Color(0.9, 0.75, 0.4))
 		else:
@@ -467,6 +474,18 @@ func _ready() -> void:
 	brace_btn.color = Color(0.1, 0.2, 0.35, 0.75)
 	musket_btn = _round("ATIRAR", "mosquete", Control.PRESET_BOTTOM_RIGHT, Vector2(-170, -178), Vector2(140, 140), func(): ctl.shoot_musket())
 	musket_btn.color = Color(0.45, 0.08, 0.05, 0.75)
+	# abordagem: sabre, aparar (contra-ataque) e pistola
+	sword_btn = _round("ESPADA", "golpe", Control.PRESET_BOTTOM_RIGHT, Vector2(-170, -178), Vector2(140, 140), func(): _board_cmd("attack"))
+	sword_btn.color = Color(0.45, 0.08, 0.05, 0.75)
+	parry_btn = _round("DEFENDER", "contra", Control.PRESET_BOTTOM_RIGHT, Vector2(-318, -130), Vector2(112, 112), func(): _board_cmd("block"))
+	parry_btn.color = Color(0.1, 0.2, 0.35, 0.75)
+	pistol_btn = _round("PISTOLA", "", Control.PRESET_BOTTOM_RIGHT, Vector2(-160, -320), Vector2(96, 96), func(): _board_cmd("pistol"))
+	pistol_btn.color = Color(0.3, 0.12, 0.05, 0.75)
+	for b in [parry_btn, pistol_btn]:
+		b.font_size = 13
+	foot_sword_btn = _round("SABRE", "", Control.PRESET_BOTTOM_RIGHT, Vector2(-318, -130), Vector2(104, 104), func(): ctl.sword_attack())
+	foot_sword_btn.color = Color(0.3, 0.12, 0.05, 0.75)
+	foot_sword_btn.font_size = 14
 
 	var defs := [
 		["MENU", func(): open_menu.emit()],
@@ -630,17 +649,36 @@ func _on_message(text: String, color: Color) -> void:
 
 func set_action(id: String, text: String) -> void:
 	action_id = id
-	action_btn.visible = id != ""
+	action_btn.visible = id != "" and ctl.mode != PlayerController.Mode.BOARD
 	if action_btn.text != text:
 		action_btn.text = text
 		action_btn.queue_redraw()
+
+
+func _board_cmd(c: String) -> void:
+	if ctl.board == null:
+		return
+	match c:
+		"attack":
+			ctl.board.attack()
+		"block":
+			ctl.board.block()
+		"pistol":
+			ctl.board.pistol()
 
 
 func _process(delta: float) -> void:
 	var w := World.I
 	if w == null or w.player == null:
 		return
-	var foot := ctl.on_land()
+	var boarding := ctl.mode == PlayerController.Mode.BOARD
+	for b in [sword_btn, parry_btn, pistol_btn]:
+		b.visible = boarding
+	if boarding and ctl.board:
+		pistol_btn.progress = 1.0 - ctl.board.pistol_cd / Boarding.PISTOL_CD
+		pistol_btn.sub = "%d inimigos" % ctl.board.enemies_left()
+		pistol_btn.queue_redraw()
+	var foot := ctl.on_land() or boarding
 	wheel.visible = not foot
 	joy.visible = foot
 	sail.visible = not foot
@@ -655,6 +693,7 @@ func _process(delta: float) -> void:
 	brace_btn.visible = not foot
 	mortar_btn.visible = not foot and int(Game.upgrades["morteiro"]) > 0
 	musket_btn.visible = ctl.mode == PlayerController.Mode.FOOT
+	foot_sword_btn.visible = ctl.mode == PlayerController.Mode.FOOT
 	bow_btn.progress = 1.0 - pl.bow_cd / Ship.BOW_RELOAD
 	mortar_btn.progress = 1.0 - pl.mortar_cd / Ship.MORTAR_RELOAD
 	brace_btn.progress = 1.0 - pl.brace_cd / 6.0
@@ -733,6 +772,14 @@ func _input(e: InputEvent) -> void:
 			KEY_X:
 				if ctl.mode == PlayerController.Mode.FOOT:
 					ctl.shoot_musket()
+				else:
+					_board_cmd("pistol")
+			KEY_J:
+				if ctl.mode == PlayerController.Mode.FOOT:
+					ctl.sword_attack()
+				_board_cmd("attack")
+			KEY_K:
+				_board_cmd("block")
 
 
 func release_all() -> void:

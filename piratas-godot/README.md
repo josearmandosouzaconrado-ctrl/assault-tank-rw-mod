@@ -44,7 +44,9 @@ Como pirata, sua infâmia cresce (Marujo Rebelde → Rei dos Piratas) e caçador
 - **Bebidas e moral**: pague rodadas de rum para a tripulação (moral alta recarrega os canhões mais rápido e vence abordagens) ou beba você mesmo, e o mundo balança.
 - **Romance**: em cada cidade há uma pessoa especial. Converse, dê presentes, convide para jantar e, com afeto máximo, peça em casamento.
 - **Combater** como no Black Flag: bordadas pelos costados (três munições: redonda, corrente e metralha), **canhões de proa** com corrente que freia o inimigo, **morteiros** de longe (o círculo vermelho mostra onde as bombas caem; os inimigos grandes também usam), **segurar-se** para receber menos dano e **abalroar** (melhor com o esporão de ferro).
-- **Combate a pé**: o capitão anda em terceira pessoa com mosquete. Em cidades inimigas (ou se você atirar numa cidade amiga) os guardas atacam; suas tropas atiram junto. Com o forte silenciado e todos os guardas derrubados, dá para **tomar a cidade** a pé.
+- **Abordagem em tempo real** (como em Black Flag): os navios ficam presos pelos ganchos e você luta no convés inimigo com o sabre, ao lado da sua tripulação. ESPADA golpeia em sequência, DEFENDER apara — se o inimigo atacar (marca vermelha sobre a cabeça) enquanto você apara, vem o contra-ataque — e PISTOLA dá um tiro a cada 6 s. Derrube todos para render o navio.
+- **Personagens realistas**: modelos humanos com animações de verdade (andar, correr, sabre, aparar, morrer), roupas recortadas por região (casaca, colete, camisa, calção, meias, sapatos), cabelo com rabicho ou coque, e mosquete de pederneira detalhado (fecho, latão, vareta, bandoleira, baioneta).
+- **Combate a pé**: o capitão anda em terceira pessoa com mosquete e sabre (botão SABRE). Em cidades inimigas (ou se você atirar numa cidade amiga) os guardas atacam; suas tropas atiram junto. Com o forte silenciado e todos os guardas derrubados, dá para **tomar a cidade** a pé.
 - **Uniformes e roupas da época**: casacas compridas com vistas coloridas por nação (vermelho britânico, branco espanhol, cinza-esbranquiçado francês, azul holandês, verde português), talabarte e tricórnio; marujos de calções largos; mulheres de saia comprida, avental e touca. Os soldados seguram o mosquete como nos manuais de armas: ombro-armas, descansar e apontar.
 - **Alfaiate e armeiro**: roupas, cor da casaca, chapéus (tricórnio, lenço, abas largas, bicórnio) e armas (mosquete comum, pistolas, mosquete de precisão).
 - **Seu próprio reino**: com 2 cidades conquistadas e 15.000 moedas, funde um reino com nome e bandeira próprios; as cidades rendem impostos diários.
@@ -73,7 +75,7 @@ Celular (horizontal):
 - A pé: joystick à esquerda e arrastar para olhar. O botão verde muda conforme o lugar: Conversar, Falar com..., Entrar na taverna, Montar no cavalo, Cavar ou Voltar ao navio.
 - A cavalo: joystick para frente acelera, para os lados vira; a câmera fica atrás do cavalo.
 
-Computador: `A/D` leme, `W/S` velas, `Q/E` canhões, `G` proa, `T` morteiro, `B` segurar, `X` mosquete, `R` munição, `C` câmera, `Z` luneta, `F` ação, `M` mapa, `Esc` pausa. Arraste com o mouse para olhar e use a roda para o zoom.
+Computador: `A/D` leme, `W/S` velas, `Q/E` canhões, `G` proa, `T` morteiro, `B` segurar, `X` mosquete/pistola, `J` sabre, `K` defender, `R` munição, `C` câmera, `Z` luneta, `F` ação, `M` mapa, `Esc` pausa. Arraste com o mouse para olhar e use a roda para o zoom.
 
 ## Abrir no editor
 
@@ -109,6 +111,10 @@ scripts/menu_ui.gd      menu, escolha de carreira, opções e pausa
 scripts/audio.gd        efeitos sonoros e música sintetizados
 scripts/attire.gd       roupas da época presas aos ossos (casaca, vistas, talabarte, saia, calções)
 scripts/musket_rig.gd   posições do mosquete com cinemática inversa nos braços
+scripts/boarding.gd     abordagem em tempo real (sabre, aparar/contra-ataque, pistola)
+scripts/attire.gd       roupas, cabelo, chapéus e sabre presos aos ossos
+shaders/person.gdshader corpo dos personagens com as roupas da época
+tools/preparar_humanos.py  reduz os modelos humanos para o celular
 scripts/assets.gd       carrega os modelos 3D, animações e junta peças numa malha só
 assets/                 modelos 3D CC0 (Kenney e Quaternius) — ver assets/CREDITOS.md
 shaders/                oceano, céu, velas, bandeiras, madeira e terreno
